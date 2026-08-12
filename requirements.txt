@@ -1,0 +1,7 @@
+ultralytics
+opencv-python
+numpy
+matplotlib
+scipy
+networkx
+alns

@@ -1,0 +1,17 @@
+# VisDrone2019-DET Dataset Configuration for YOLOv8
+path: d:/Capstone/data/VisDrone/VisDrone_Full/VisDrone2019-DET-train
+train: images
+val: images
+
+# 10 Aerial Object Classes in VisDrone
+names:
+  0: pedestrian
+  1: people
+  2: bicycle
+  3: car
+  4: van
+  5: truck
+  6: tricycle
+  7: awning-tricycle
+  8: bus
+  9: motor
