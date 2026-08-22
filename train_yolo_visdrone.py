@@ -11,6 +11,7 @@ def train_visdrone_model(epochs=10, batch_size=16, img_size=640):
     print("===================================================================")
 
     try:
+        # pyrefly: ignore [missing-import]
         from ultralytics import YOLO
     except ImportError:
         print("[Error] ultralytics package not installed. Run: pip install ultralytics")
@@ -28,6 +29,7 @@ def train_visdrone_model(epochs=10, batch_size=16, img_size=640):
     print(f"[Training Setup] Target Weights : d:/Capstone/visdrone_yolov8_custom.pt")
     print("\n[Training Started] Training PyTorch YOLOv8 on your GPU. Please wait...")
 
+    # pyrefly: ignore [missing-import]
     import torch
     device_setting = 0 if torch.cuda.is_available() else 'cpu'
     print(f"[Training Setup] Hardware Device : {device_setting} (CUDA available: {torch.cuda.is_available()})")
