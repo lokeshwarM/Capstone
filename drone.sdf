@@ -1,0 +1,80 @@
+<?xml version="1.0" ?>
+<sdf version="1.7">
+  <model name="drone">
+    <pose>0 0 0.2 0 0 0</pose>
+    <link name="base_link">
+      <!-- We make it non-static so it can be moved, but gravity is handled by the physics engine. 
+           Wait, if it's kinematic, we should disable gravity so it doesn't fall down when we don't send Z commands. -->
+      <gravity>0</gravity>
+      
+      <collision name="collision">
+        <geometry>
+          <box>
+            <size>0.4 0.4 0.1</size>
+          </box>
+        </geometry>
+      </collision>
+      
+      <visual name="body">
+        <geometry>
+          <box>
+            <size>0.4 0.4 0.1</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.2 0.2 0.8 1</ambient>
+          <diffuse>0.2 0.2 0.8 1</diffuse>
+        </material>
+      </visual>
+
+      <!-- Propeller placeholders -->
+      <visual name="prop_fr">
+        <pose>0.2 -0.2 0.05 0 0 0</pose>
+        <geometry><cylinder><radius>0.15</radius><length>0.02</length></cylinder></geometry>
+        <material><ambient>0.8 0 0 1</ambient></material>
+      </visual>
+      <visual name="prop_fl">
+        <pose>0.2 0.2 0.05 0 0 0</pose>
+        <geometry><cylinder><radius>0.15</radius><length>0.02</length></cylinder></geometry>
+        <material><ambient>0.8 0 0 1</ambient></material>
+      </visual>
+      <visual name="prop_br">
+        <pose>-0.2 -0.2 0.05 0 0 0</pose>
+        <geometry><cylinder><radius>0.15</radius><length>0.02</length></cylinder></geometry>
+        <material><ambient>0.2 0.2 0.2 1</ambient></material>
+      </visual>
+      <visual name="prop_bl">
+        <pose>-0.2 0.2 0.05 0 0 0</pose>
+        <geometry><cylinder><radius>0.15</radius><length>0.02</length></cylinder></geometry>
+        <material><ambient>0.2 0.2 0.2 1</ambient></material>
+      </visual>
+
+      <!-- Simulated Camera -->
+      <sensor type="camera" name="downward_camera">
+        <pose>0 0 -0.05 0 1.5708 0</pose> <!-- Pointing straight down -->
+        <update_rate>10.0</update_rate>
+        <camera name="head">
+          <horizontal_fov>1.3962634</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.02</near>
+            <far>300</far>
+          </clip>
+        </camera>
+        <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+          <alwaysOn>true</alwaysOn>
+          <updateRate>0.0</updateRate>
+          <cameraName>camera</cameraName>
+          <imageTopicName>image_raw</imageTopicName>
+          <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+          <frameName>camera_link</frameName>
+        </plugin>
+      </sensor>
+
+    </link>
+  </model>
+</sdf>

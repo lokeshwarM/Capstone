@@ -1,0 +1,1020 @@
+#VRML_SIM R2023b utf8
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/robots/dji/mavic/protos/Mavic2Pro.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/road/protos/Road.proto"
+
+WorldInfo {
+  info [
+    "Autonomous Drone City Delivery Simulation"
+  ]
+  title "City Delivery"
+  basicTimeStep 8
+  defaultDamping Damping {
+    linear 0.5
+    angular 0.5
+  }
+}
+Viewpoint {
+  orientation -0.27 -0.15 0.95 1.5
+  position 0 -100 80
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+RectangleArena {
+  floorSize 400 400
+  floorAppearance PBRAppearance {
+    baseColor 0.2 0.2 0.2
+    roughness 0.8
+    metalness 0
+  }
+}
+
+Road {
+  translation 0 0 0.01
+  width 8
+  wayPoint [
+    -68.0 -60.0 0
+    68.0 -60.0 0
+  ]
+}
+
+Road {
+  translation 0 0 0.01
+  width 8
+  wayPoint [
+    -68.0 -30.0 0
+    68.0 -30.0 0
+  ]
+}
+
+Road {
+  translation 0 0 0.01
+  width 8
+  wayPoint [
+    -68.0 0.0 0
+    68.0 0.0 0
+  ]
+}
+
+Road {
+  translation 0 0 0.01
+  width 8
+  wayPoint [
+    -68.0 30.0 0
+    68.0 30.0 0
+  ]
+}
+
+Road {
+  translation 0 0 0.01
+  width 8
+  wayPoint [
+    -68.0 60.0 0
+    68.0 60.0 0
+  ]
+}
+
+Road {
+  translation 0 0 0.02
+  width 8
+  wayPoint [
+    -60.0 -68.0 0
+    -60.0 68.0 0
+  ]
+}
+
+Road {
+  translation 0 0 0.02
+  width 8
+  wayPoint [
+    -30.0 -68.0 0
+    -30.0 68.0 0
+  ]
+}
+
+Road {
+  translation 0 0 0.02
+  width 8
+  wayPoint [
+    0.0 -68.0 0
+    0.0 68.0 0
+  ]
+}
+
+Road {
+  translation 0 0 0.02
+  width 8
+  wayPoint [
+    30.0 -68.0 0
+    30.0 68.0 0
+  ]
+}
+
+Road {
+  translation 0 0 0.02
+  width 8
+  wayPoint [
+    60.0 -68.0 0
+    60.0 68.0 0
+  ]
+}
+
+Solid {
+  translation -52.124838671659994 -48.37456022446321 7.232107381488228
+  name "building_0"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.7460897838524227 0.34346941631470806 0.5109609098426352
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 10.418827284984074 10.060196924537468 14.464214762976455
+      }
+    }
+  ]
+  boundingObject Box {
+    size 10.418827284984074 10.060196924537468 14.464214762976455
+  }
+}
+
+Solid {
+  translation -52.124838671659994 -48.37456022446321 14.514214762976456
+  name "helipad_0"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 1 0
+        roughness 1
+        metalness 0
+      }
+      geometry Cylinder {
+        radius 2.0
+        height 0.1
+      }
+    }
+  ]
+}
+Mavic2Pro {
+  translation -52.124838671659994 -48.37456022446321 14.714214762976455
+  name "drone_0"
+  controller "drone_controller"
+  supervisor TRUE
+}
+
+Solid {
+  translation -49.01008659913891 -13.469719064250295 10.61245062938613
+  name "building_1"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.5097599104808294 0.5246045231419267 0.43909535411533135
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 10.29611767753442 10.207949841541415 21.22490125877226
+      }
+    }
+  ]
+  boundingObject Box {
+    size 10.29611767753442 10.207949841541415 21.22490125877226
+  }
+}
+
+Solid {
+  translation -41.11788949305349 -20.10511025434665 9.226143981535024
+  name "building_2"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.681747064503262 0.35110513825992434 0.4899636503186687
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 7.667228050029851 7.291882572645533 18.45228796307005
+      }
+    }
+  ]
+  boundingObject Box {
+    size 7.667228050029851 7.291882572645533 18.45228796307005
+  }
+}
+
+Solid {
+  translation -43.444109529496636 19.6069240991157 12.29731786693818
+  name "building_3"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.48926718860417673 0.5760203156366135 0.7147023321264974
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 9.217368548728205 11.838694583876224 24.59463573387636
+      }
+    }
+  ]
+  boundingObject Box {
+    size 9.217368548728205 11.838694583876224 24.59463573387636
+  }
+}
+
+Solid {
+  translation -39.57439649533834 16.160282178851432 12.045718362149234
+  name "building_4"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.4446939818010536 0.33989598846181374 0.4163954431805151
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 6.274946301933973 7.367389653909282 24.091436724298468
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6.274946301933973 7.367389653909282 24.091436724298468
+  }
+}
+
+Solid {
+  translation -39.57439649533834 16.160282178851432 24.14143672429847
+  name "helipad_1"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 1 0
+        roughness 1
+        metalness 0
+      }
+      geometry Cylinder {
+        radius 2.0
+        height 0.1
+      }
+    }
+  ]
+}
+Mavic2Pro {
+  translation -39.57439649533834 16.160282178851432 24.341436724298468
+  name "drone_1"
+  controller "drone_controller"
+  supervisor TRUE
+}
+
+Solid {
+  translation -48.33039595334862 17.035266663966002 8.648321789700843
+  name "building_5"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.43348891102455667 0.768327293856247 0.6240176926232968
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 8.221085802701296 7.257042184628926 17.296643579401685
+      }
+    }
+  ]
+  boundingObject Box {
+    size 8.221085802701296 7.257042184628926 17.296643579401685
+  }
+}
+
+Solid {
+  translation -44.48790184455438 41.172163877271394 9.622602118511157
+  name "building_6"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.6440809792166566 0.4098075869851345 0.4621413672076609
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 7.619686960705668 11.552347077727307 19.245204237022314
+      }
+    }
+  ]
+  boundingObject Box {
+    size 7.619686960705668 11.552347077727307 19.245204237022314
+  }
+}
+
+Solid {
+  translation -51.660930786760744 49.827038910102125 13.050458007712143
+  name "building_7"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.7565680620927725 0.5835900257392511 0.658957135359488
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 8.406988722133974 6.397131631269284 26.100916015424286
+      }
+    }
+  ]
+  boundingObject Box {
+    size 8.406988722133974 6.397131631269284 26.100916015424286
+  }
+}
+
+Solid {
+  translation -51.660930786760744 49.827038910102125 26.150916015424286
+  name "helipad_2"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 1 0
+        roughness 1
+        metalness 0
+      }
+      geometry Cylinder {
+        radius 2.0
+        height 0.1
+      }
+    }
+  ]
+}
+Mavic2Pro {
+  translation -51.660930786760744 49.827038910102125 26.350916015424286
+  name "drone_2"
+  controller "drone_controller"
+  supervisor TRUE
+}
+
+Solid {
+  translation -16.565521484090034 -38.781786153891844 9.588518525873988
+  name "building_8"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.5806840670815754 0.4313708042614676 0.5922929951117702
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 7.589280998988315 7.479765046163901 19.177037051747977
+      }
+    }
+  ]
+  boundingObject Box {
+    size 7.589280998988315 7.479765046163901 19.177037051747977
+  }
+}
+
+Solid {
+  translation -16.50899242289404 -49.21018861264075 14.975376064951103
+  name "building_9"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.3235581877123673 0.35482456517532956 0.613723020851545
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 9.057157762058786 6.545456473042764 29.950752129902206
+      }
+    }
+  ]
+  boundingObject Box {
+    size 9.057157762058786 6.545456473042764 29.950752129902206
+  }
+}
+
+Solid {
+  translation -16.167600498004738 -51.54708440772065 8.816192865065368
+  name "building_10"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.7855391888068091 0.7303898511172491 0.3057405109714098
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 11.97672828144058 9.174686070594822 17.632385730130736
+      }
+    }
+  ]
+  boundingObject Box {
+    size 11.97672828144058 9.174686070594822 17.632385730130736
+  }
+}
+
+Solid {
+  translation -12.274344464601379 -44.44544504386808 7.668251899525428
+  name "building_11"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.5173826253345525 0.5268618531646032 0.77690796376054
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 9.845770791478849 6.669313041575259 15.336503799050856
+      }
+    }
+  ]
+  boundingObject Box {
+    size 9.845770791478849 6.669313041575259 15.336503799050856
+  }
+}
+
+Solid {
+  translation -7.921678516948285 -11.07056701421903 10.076816746043253
+  name "building_12"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.7208346740862335 0.5538314409888171 0.3994555508823665
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 6.63846493678623 9.751801161398506 20.153633492086506
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6.63846493678623 9.751801161398506 20.153633492086506
+  }
+}
+
+Solid {
+  translation -20.0767644637027 -8.197503785197458 14.224340806182747
+  name "building_13"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.5443028540144739 0.3559338626604475 0.48149038359046675
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 11.510960966374213 9.593667506761374 28.448681612365494
+      }
+    }
+  ]
+  boundingObject Box {
+    size 11.510960966374213 9.593667506761374 28.448681612365494
+  }
+}
+
+Solid {
+  translation -10.39837792804307 -18.90821534492912 7.408715924472331
+  name "building_14"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.6659537974223139 0.7080116267100443 0.7889922468386671
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 9.40414166213346 6.472542289748197 14.817431848944661
+      }
+    }
+  ]
+  boundingObject Box {
+    size 9.40414166213346 6.472542289748197 14.817431848944661
+  }
+}
+
+Solid {
+  translation -20.57412803250356 14.62923567148097 10.498035934949439
+  name "building_15"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.5115689701004434 0.405899102721041 0.5696480443897292
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 7.590339773640355 11.234598246511545 20.996071869898877
+      }
+    }
+  ]
+  boundingObject Box {
+    size 7.590339773640355 11.234598246511545 20.996071869898877
+  }
+}
+
+Solid {
+  translation -19.482734049154562 12.175744369513424 14.951493566608946
+  name "building_16"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.5587879205177952 0.36050209793413285 0.41234866851577867
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 9.89926834583672 8.628600503487025 29.90298713321789
+      }
+    }
+  ]
+  boundingObject Box {
+    size 9.89926834583672 8.628600503487025 29.90298713321789
+  }
+}
+
+Solid {
+  translation -13.673398283844735 37.607862584776406 12.07840946548454
+  name "building_17"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.31570647902650906 0.46521424454024934 0.5570780599042946
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 6.35324260125794 6.404401968661845 24.15681893096908
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6.35324260125794 6.404401968661845 24.15681893096908
+  }
+}
+
+Solid {
+  translation -13.673398283844735 37.607862584776406 24.20681893096908
+  name "helipad_3"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 1 0
+        roughness 1
+        metalness 0
+      }
+      geometry Cylinder {
+        radius 2.0
+        height 0.1
+      }
+    }
+  ]
+}
+Mavic2Pro {
+  translation -13.673398283844735 37.607862584776406 24.40681893096908
+  name "drone_3"
+  controller "drone_controller"
+  supervisor TRUE
+}
+
+Solid {
+  translation -15.218782512742639 45.58850897092132 12.233525658809707
+  name "building_18"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.42149862119786224 0.5364864714722968 0.5035299807429683
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 11.294298450844426 9.4572698983254 24.467051317619415
+      }
+    }
+  ]
+  boundingObject Box {
+    size 11.294298450844426 9.4572698983254 24.467051317619415
+  }
+}
+
+Solid {
+  translation 12.814463498843306 -46.33346585925393 13.638367483696033
+  name "building_19"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.6230898756474922 0.3303063370385068 0.6641067942205914
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 6.325027123393023 9.920732929594749 27.276734967392066
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6.325027123393023 9.920732929594749 27.276734967392066
+  }
+}
+
+Solid {
+  translation 9.13903548367206 -49.62614891787519 10.362857539103445
+  name "building_20"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.5313140342004836 0.73724297703529 0.33769244418714467
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 6.841093782568647 7.1009282147234 20.72571507820689
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6.841093782568647 7.1009282147234 20.72571507820689
+  }
+}
+
+Solid {
+  translation 20.33950338702559 -51.03136907697599 11.52144893998522
+  name "building_21"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.34663138809191796 0.6767827520098377 0.4181897452708747
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 9.24352762860183 6.088547138973903 23.04289787997044
+      }
+    }
+  ]
+  boundingObject Box {
+    size 9.24352762860183 6.088547138973903 23.04289787997044
+  }
+}
+
+Solid {
+  translation 14.720376269565593 -39.53024408954677 14.024428655105487
+  name "building_22"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.4952108787939066 0.7632590367796667 0.6925646783970607
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 6.987822728409161 6.012932270108559 28.048857310210973
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6.987822728409161 6.012932270108559 28.048857310210973
+  }
+}
+
+Solid {
+  translation 9.82195237911096 -18.049382617581536 14.687093649691588
+  name "building_23"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.673987780189532 0.32858263645374153 0.5920887972294856
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 9.475081744897537 9.253171208245647 29.374187299383177
+      }
+    }
+  ]
+  boundingObject Box {
+    size 9.475081744897537 9.253171208245647 29.374187299383177
+  }
+}
+
+Solid {
+  translation 20.290798380724283 -20.138509080907752 14.607789032744504
+  name "building_24"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.5975175532250139 0.6376062768020451 0.4176019475004656
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 6.480668791443521 7.114949765884339 29.21557806548901
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6.480668791443521 7.114949765884339 29.21557806548901
+  }
+}
+
+Solid {
+  translation 20.85430971194156 -18.806769783170626 10.945191535334413
+  name "building_25"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.5918361446456124 0.5613913577659795 0.7673531288682136
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 9.716289061992619 8.515349492015234 21.890383070668825
+      }
+    }
+  ]
+  boundingObject Box {
+    size 9.716289061992619 8.515349492015234 21.890383070668825
+  }
+}
+
+Solid {
+  translation 18.242877011841223 -18.91971071076231 8.957858467912544
+  name "building_26"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.458088598135927 0.675932246207201 0.33627155724657865
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 10.030141337759828 7.799982478792574 17.91571693582509
+      }
+    }
+  ]
+  boundingObject Box {
+    size 10.030141337759828 7.799982478792574 17.91571693582509
+  }
+}
+
+Solid {
+  translation 8.598910816494495 10.697314684005606 7.652004147504013
+  name "building_27"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.7396351212422714 0.48476354436944197 0.378873416178616
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 11.599556267962255 11.285185042118638 15.304008295008027
+      }
+    }
+  ]
+  boundingObject Box {
+    size 11.599556267962255 11.285185042118638 15.304008295008027
+  }
+}
+
+Solid {
+  translation 16.67516648588925 52.30849595447256 11.539763177107325
+  name "building_28"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.44968937609998894 0.6316943574830387 0.7694650019635519
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 6.046938642912948 10.902624810692771 23.07952635421465
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6.046938642912948 10.902624810692771 23.07952635421465
+  }
+}
+
+Solid {
+  translation 9.231430056286534 39.10553966564127 10.53223640884816
+  name "building_29"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.6588060935693989 0.40179865616372645 0.6171189794425398
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 7.634089273888898 9.628978962181343 21.06447281769632
+      }
+    }
+  ]
+  boundingObject Box {
+    size 7.634089273888898 9.628978962181343 21.06447281769632
+  }
+}
+
+Solid {
+  translation 14.827977782240648 51.080047366189845 13.461037132948555
+  name "building_30"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.4383401119861258 0.30177284454389114 0.6855596115098135
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 6.5537908062764005 8.541454635382358 26.92207426589711
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6.5537908062764005 8.541454635382358 26.92207426589711
+  }
+}
+
+Solid {
+  translation 39.92372964410829 -45.87246732208724 12.056674467599908
+  name "building_31"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.7725254695233195 0.6455098118779382 0.37452714273925974
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 9.365441188648479 6.67124328353601 24.113348935199816
+      }
+    }
+  ]
+  boundingObject Box {
+    size 9.365441188648479 6.67124328353601 24.113348935199816
+  }
+}
+
+Solid {
+  translation 43.038239767682875 -44.21212354882503 9.297867128807717
+  name "building_32"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.7665440052603271 0.7860981325086303 0.3199474390556091
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 6.250973149013147 8.187909091963537 18.595734257615433
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6.250973149013147 8.187909091963537 18.595734257615433
+  }
+}
+
+Solid {
+  translation 47.731000324658645 -42.495998840466854 8.536786346146183
+  name "building_33"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.7869185113186445 0.6747388055717696 0.7628819112847782
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 9.359301114863218 11.248276341246548 17.073572692292366
+      }
+    }
+  ]
+  boundingObject Box {
+    size 9.359301114863218 11.248276341246548 17.073572692292366
+  }
+}
+
+Solid {
+  translation 52.14309049396444 -10.338424200894046 13.814162046633244
+  name "building_34"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.4660927339732143 0.7654079430241627 0.7011175694685694
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 6.148718171389133 10.419386830530492 27.62832409326649
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6.148718171389133 10.419386830530492 27.62832409326649
+  }
+}
+
+Solid {
+  translation 49.661239748615834 -18.49791435608292 12.873745091354712
+  name "building_35"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.7292966256688909 0.4112168587728322 0.7082933027984645
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 6.648573758417743 11.233000697436538 25.747490182709424
+      }
+    }
+  ]
+  boundingObject Box {
+    size 6.648573758417743 11.233000697436538 25.747490182709424
+  }
+}
+
+Solid {
+  translation 49.80804571457343 20.56984553794512 7.22923547205809
+  name "building_36"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.43930153051150195 0.33471037733140996 0.6866633187201805
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 9.960199096491774 8.3907958713887 14.45847094411618
+      }
+    }
+  ]
+  boundingObject Box {
+    size 9.960199096491774 8.3907958713887 14.45847094411618
+  }
+}
+
+Solid {
+  translation 45.14108513292056 17.692771775403955 13.436611632720808
+  name "building_37"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.7385192057877801 0.4306075981951051 0.590294866869354
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 7.986899209286443 6.165603210717816 26.873223265441617
+      }
+    }
+  ]
+  boundingObject Box {
+    size 7.986899209286443 6.165603210717816 26.873223265441617
+  }
+}
+
+Solid {
+  translation 38.07385796029894 16.44856882481617 8.456871116798002
+  name "building_38"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.792117924658295 0.3578228920146652 0.7497523664555998
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 10.718569069222092 8.618363303223648 16.913742233596004
+      }
+    }
+  ]
+  boundingObject Box {
+    size 10.718569069222092 8.618363303223648 16.913742233596004
+  }
+}
+
+Solid {
+  translation 48.13177925751256 37.525369173279444 14.255751654990828
+  name "building_39"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.6709750389197382 0.6353142522164997 0.4821107358906321
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 9.230711982556752 10.316579994869073 28.511503309981656
+      }
+    }
+  ]
+  boundingObject Box {
+    size 9.230711982556752 10.316579994869073 28.511503309981656
+  }
+}
