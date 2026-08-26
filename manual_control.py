@@ -70,7 +70,7 @@ class TeleopNode(Node):
         
         self.drone_name = 'drone1'
         self.holding = None
-        self.box_pose = None
+        self.box_poses = {}
 
         # --- MODEL TRACKING ---
         # Must import inside or at top level. Let's do it here for safety.
@@ -94,9 +94,9 @@ class TeleopNode(Node):
 
     def model_cb(self, msg):
         try:
-            if 'box_payload' in msg.name:
-                idx = msg.name.index('box_payload')
-                self.box_pose = msg.pose[idx]
+            for i, name in enumerate(msg.name):
+                if name.startswith('package_'):
+                    self.box_poses[name] = msg.pose[i]
         except Exception:
             pass
 
@@ -186,66 +186,130 @@ class TeleopNode(Node):
         self._set_pose(pos[0], pos[1], pos[2])
 
     # ---------------------------------------------------------------------
-    # Object handling
+    # Multi-Object Mission & Delivery Handling
     # ---------------------------------------------------------------------
-    def spawn_box(self):
-        # A bright green box (1x1x1) so it is very visible on the gray floor
-        xml = """<?xml version="1.0" ?><sdf version="1.6"><model name="box"><static>false</static><link name="link"><visual name="visual"><geometry><box><size>1 1 1</size></box></geometry><material><ambient>0 1 0 1</ambient></material></visual><collision name="collision"><geometry><box><size>1 1 1</size></box></geometry></collision></link></model></sdf>"""
+    def setup_mission(self):
+        # 7 Helipad destinations generated from city.sdf
+        self.destinations = [
+            (-45.0, 15.0, 25.26), (-30.0, -45.0, 26.44), (-30.0, -30.0, 34.38),
+            (-30.0, 15.0, 20.19), (-15.0, 15.0, 11.47), (-15.0, 30.0, 12.49),
+            (30.0, 0.0, 12.82)
+        ]
         
-        # Try to delete the old box first so it doesn't get stuck in previous spawn locations
-        del_req = DeleteEntity.Request()
-        del_req.name = 'box_payload'
-        self.delete_client.call_async(del_req)
-        
-        # Give it a tiny bit of time to delete before respawning
-        def delayed_spawn():
-            time.sleep(0.5)
-            req = SpawnEntity.Request()
-            req.name = 'box_payload'
-            req.xml = xml
-            # Spawn it right in front of drone1's starting position so you can see it!
-            req.initial_pose.position.x = -7.5
-            req.initial_pose.position.y = -5.0
-            req.initial_pose.position.z = 1.0
-            req.reference_frame = 'world'
-            self.spawn_client.call_async(req)
-            self.get_logger().info(f'Spawned new box_payload right in front of drone 1!')
+        self.packages = {}
+        # Spawn 15 packages scattered around the origin
+        for i in range(1, 16):
+            pkg_name = f'package_{i}'
+            # Random ground coordinate around center (-20 to 20)
+            import random
+            px = random.uniform(-20, 20)
+            py = random.uniform(-20, 20)
+            pz = 1.0
             
-        threading.Thread(target=delayed_spawn).start()
+            # Assign a random destination
+            dest = random.choice(self.destinations)
+            self.packages[pkg_name] = {'start': (px, py, pz), 'dest': dest, 'delivered': False}
+            
+            xml = f"""<?xml version="1.0" ?><sdf version="1.6"><model name="{pkg_name}"><static>false</static><link name="link"><visual name="visual"><geometry><box><size>0.8 0.8 0.8</size></box></geometry><material><ambient>0 1 0 1</ambient></material></visual><collision name="collision"><geometry><box><size>0.8 0.8 0.8</size></box></geometry></collision></link></model></sdf>"""
+            
+            # Delete old if exists
+            del_req = DeleteEntity.Request()
+            del_req.name = pkg_name
+            self.delete_client.call_async(del_req)
+            
+            # Spawn new
+            req = SpawnEntity.Request()
+            req.name = pkg_name
+            req.xml = xml
+            req.initial_pose.position.x = float(px)
+            req.initial_pose.position.y = float(py)
+            req.initial_pose.position.z = float(pz)
+            req.reference_frame = 'world'
+            # Small delay to ensure delete finishes
+            time.sleep(0.05)
+            self.spawn_client.call_async(req)
+            
+        self.get_logger().info('Mission setup complete: 15 packages spawned.')
 
     def pick_object(self):
         if self.holding:
             self.get_logger().info('Already holding an object')
             return
             
-        # We need to know where the box is to pick it up!
-        if not hasattr(self, 'box_pose') or self.box_pose is None:
-            self.get_logger().info('Cannot find box in the world. Is it spawned?')
-            return
-            
-        # Calculate distance between drone and box
         drone_pos = self.current_positions[self.drone_name]
-        dx = drone_pos[0] - self.box_pose.position.x
-        dy = drone_pos[1] - self.box_pose.position.y
-        dz = drone_pos[2] - self.box_pose.position.z
         
-        dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+        # Find the closest package
+        closest_pkg = None
+        min_dist = float('inf')
         
-        # If the drone is within 3.5 meters of the box, it can grab it!
-        if dist > 3.5:
-            self.get_logger().info(f'Too far to pick up! Distance: {dist:.1f}m. Hover closer to the box.')
-            return
+        for pkg_name, data in self.packages.items():
+            if data['delivered']: continue
             
-        self.holding = 'box_payload'
-        self.get_logger().info(f'Successfully picked up box_payload!')
+            # Use tracked box_poses if available from model_states, else fallback to start pos
+            if hasattr(self, 'box_poses') and pkg_name in self.box_poses:
+                b_pos = self.box_poses[pkg_name]
+                bx, by, bz = b_pos.position.x, b_pos.position.y, b_pos.position.z
+            else:
+                bx, by, bz = data['start']
+                
+            dx = drone_pos[0] - bx
+            dy = drone_pos[1] - by
+            dz = drone_pos[2] - bz
+            dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+            
+            if dist < min_dist:
+                min_dist = dist
+                closest_pkg = pkg_name
+                
+        if closest_pkg and min_dist <= 3.5:
+            self.holding = closest_pkg
+            dest = self.packages[closest_pkg]['dest']
+            self.get_logger().info(f'Picked up {closest_pkg}! Deliver to X:{dest[0]:.0f}, Y:{dest[1]:.0f}, Z:{dest[2]:.0f}')
+            
+            # SPAWN A VISUAL MARKER AT THE DESTINATION
+            marker_name = f'marker_{closest_pkg}'
+            # A tall, semi-transparent red cylinder to mark the drop zone
+            marker_xml = f"""<?xml version="1.0" ?><sdf version="1.6"><model name="{marker_name}"><static>true</static><link name="link"><visual name="visual"><geometry><cylinder><radius>1.5</radius><length>20.0</length></cylinder></geometry><material><ambient>1 0 0 0.5</ambient><diffuse>1 0 0 0.5</diffuse></material></visual></link></model></sdf>"""
+            
+            req = SpawnEntity.Request()
+            req.name = marker_name
+            req.xml = marker_xml
+            req.initial_pose.position.x = float(dest[0])
+            req.initial_pose.position.y = float(dest[1])
+            req.initial_pose.position.z = float(dest[2] + 10.0) # Center the 20m cylinder on the helipad
+            req.reference_frame = 'world'
+            self.spawn_client.call_async(req)
+            
+        else:
+            self.get_logger().info('No packages within 3.5m to pick up.')
 
     def drop_object(self):
         if not self.holding:
             self.get_logger().info('Not holding any object')
             return
+            
+        pkg = self.holding
         self.holding = None
-        self.get_logger().info(f'Dropped payload')
-
+        
+        # REMOVE THE VISUAL MARKER
+        marker_name = f'marker_{pkg}'
+        del_marker_req = DeleteEntity.Request()
+        del_marker_req.name = marker_name
+        self.delete_client.call_async(del_marker_req)
+        
+        # Check if dropped at destination
+        dest = self.packages[pkg]['dest']
+        drone_pos = self.current_positions[self.drone_name]
+        
+        dx = drone_pos[0] - dest[0]
+        dy = drone_pos[1] - dest[1]
+        
+        # If within 5 meters horizontally of the helipad
+        if math.sqrt(dx*dx + dy*dy) < 5.0:
+            self.packages[pkg]['delivered'] = True
+            self.get_logger().info(f'SUCCESS! {pkg} delivered successfully!')
+        else:
+            self.get_logger().info(f'Dropped {pkg}. Not at destination (X:{dest[0]:.0f}, Y:{dest[1]:.0f}).')
 
 # -----------------------------------------------------------------------------
 # Keyboard utilities
@@ -273,7 +337,7 @@ def main():
     ros_thread.start()
     
     try:
-        teleop.spawn_box()
+        teleop.setup_mission()
         
         while True:
             # Continuously update the held object's position to prevent gravity from pulling it down
