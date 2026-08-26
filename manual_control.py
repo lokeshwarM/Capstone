@@ -1,13 +1,19 @@
+# pyrefly: ignore [missing-import]
 import rclpy
+# pyrefly: ignore [missing-import]
 from rclpy.node import Node
+# pyrefly: ignore [missing-import]
 from gazebo_msgs.srv import SetEntityState, GetEntityState, SpawnEntity, DeleteEntity
+# pyrefly: ignore [missing-import]
 from sensor_msgs.msg import Image
+# pyrefly: ignore [missing-import]
 from cv_bridge import CvBridge
 import sys
 import termios
 import tty
 import select
 import threading
+# pyrefly: ignore [missing-import]
 import cv2
 import math
 import time
@@ -49,12 +55,13 @@ class TeleopNode(Node):
         # --- SERVICES ---
         self.set_client = self.create_client(SetEntityState, '/set_entity_state')
         self.spawn_client = self.create_client(SpawnEntity, '/spawn_entity')
+        self.delete_client = self.create_client(DeleteEntity, '/delete_entity')
         
         while not self.set_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('Waiting for /set_entity_state...')
             
-        # Hardcode initial spawn positions so it doesn't teleport to 0,0,0
-        self.spawn_positions = {
+        # Track current positions for all drones so they don't teleport when switching
+        self.current_positions = {
             'drone1': [-7.5, -7.5, 0.5],
             'drone2': [ 7.5, -7.5, 0.5],
             'drone3': [-7.5,  7.5, 0.5],
@@ -62,10 +69,14 @@ class TeleopNode(Node):
         }
         
         self.drone_name = 'drone1'
-        self.x = self.spawn_positions['drone1'][0]
-        self.y = self.spawn_positions['drone1'][1]
-        self.z = self.spawn_positions['drone1'][2]
         self.holding = None
+        self.box_pose = None
+
+        # --- MODEL TRACKING ---
+        # Must import inside or at top level. Let's do it here for safety.
+        # pyrefly: ignore [missing-import]
+        from gazebo_msgs.msg import ModelStates
+        self.model_sub = self.create_subscription(ModelStates, '/model_states', self.model_cb, 10)
 
         # --- CAMERAS ---
         self.bridge = CvBridge()
@@ -80,6 +91,14 @@ class TeleopNode(Node):
             window_name = f'Drone {i} View'
             cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
             cv2.resizeWindow(window_name, 320, 240)
+
+    def model_cb(self, msg):
+        try:
+            if 'box_payload' in msg.name:
+                idx = msg.name.index('box_payload')
+                self.box_pose = msg.pose[idx]
+        except Exception:
+            pass
 
     def image_cb(self, msg, drone_id):
         try:
@@ -128,16 +147,33 @@ class TeleopNode(Node):
     # Movement
     # ---------------------------------------------------------------------
     def move(self, dx, dy, dz):
-        self.x += dx
-        self.y += dy
-        self.z += dz
-        self._set_pose(self.x, self.y, self.z)
-        self.get_logger().info(f'{self.drone_name} -> ({self.x:.2f}, {self.y:.2f}, {self.z:.2f})')
+        pos = self.current_positions[self.drone_name]
+        pos[0] += dx
+        pos[1] += dy
+        pos[2] += dz
+        self._set_pose(pos[0], pos[1], pos[2])
+        self.get_logger().info(f'{self.drone_name} -> ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})')
 
     def toggle_takeoff(self):
-        target = 50.0 if self.z < 5.0 else 0.5
-        self.move(0, 0, target - self.z)
+        z = self.current_positions[self.drone_name][2]
+        target = 50.0 if z < 5.0 else 0.5
+        self.move(0, 0, target - z)
         self.get_logger().info(f'{self.drone_name} {"taking off" if target > 5.0 else "landing"}')
+        
+    def update_held_object(self):
+        if self.holding:
+            pos = self.current_positions[self.drone_name]
+            req_obj = SetEntityState.Request()
+            req_obj.state.name = self.holding
+            req_obj.state.pose.position.x = float(pos[0])
+            req_obj.state.pose.position.y = float(pos[1])
+            req_obj.state.pose.position.z = float(pos[2] - 0.5)
+            # Reset velocities to prevent gravity accumulation
+            req_obj.state.twist.linear.x = 0.0
+            req_obj.state.twist.linear.y = 0.0
+            req_obj.state.twist.linear.z = 0.0
+            req_obj.state.reference_frame = 'world'
+            self.set_client.call_async(req_obj)
 
     # ---------------------------------------------------------------------
     # Drone selection
@@ -145,35 +181,63 @@ class TeleopNode(Node):
     def switch_drone(self, number):
         self.drone_name = f'drone{number}'
         self.get_logger().info(f'Switched control to {self.drone_name}')
-        self.x = self.spawn_positions[self.drone_name][0]
-        self.y = self.spawn_positions[self.drone_name][1]
-        self.z = self.spawn_positions[self.drone_name][2]
-        self._set_pose(self.x, self.y, self.z)
+        # DO NOT reset coordinates. Just fetch the current position we've been tracking!
+        pos = self.current_positions[self.drone_name]
+        self._set_pose(pos[0], pos[1], pos[2])
 
     # ---------------------------------------------------------------------
     # Object handling
     # ---------------------------------------------------------------------
     def spawn_box(self):
-        xml = """<?xml version="1.0" ?><sdf version="1.6"><model name="box"><static>false</static><link name="link"><visual name="visual"><geometry><box><size>1 1 1</size></box></geometry><material><ambient>1 0 0 1</ambient></material></visual><collision name="collision"><geometry><box><size>1 1 1</size></box></geometry></collision></link></model></sdf>"""
-        req = SpawnEntity.Request()
-        req.name = 'box_payload'
-        req.xml = xml
-        req.initial_pose.position.x = 0.0
-        req.initial_pose.position.y = 0.0
-        req.initial_pose.position.z = 1.0
-        req.reference_frame = 'world'
-        self.spawn_client.call_async(req)
-        self.get_logger().info(f'Spawned box_payload at origin (0, 0, 1)')
+        # A bright green box (1x1x1) so it is very visible on the gray floor
+        xml = """<?xml version="1.0" ?><sdf version="1.6"><model name="box"><static>false</static><link name="link"><visual name="visual"><geometry><box><size>1 1 1</size></box></geometry><material><ambient>0 1 0 1</ambient></material></visual><collision name="collision"><geometry><box><size>1 1 1</size></box></geometry></collision></link></model></sdf>"""
+        
+        # Try to delete the old box first so it doesn't get stuck in previous spawn locations
+        del_req = DeleteEntity.Request()
+        del_req.name = 'box_payload'
+        self.delete_client.call_async(del_req)
+        
+        # Give it a tiny bit of time to delete before respawning
+        def delayed_spawn():
+            time.sleep(0.5)
+            req = SpawnEntity.Request()
+            req.name = 'box_payload'
+            req.xml = xml
+            # Spawn it right in front of drone1's starting position so you can see it!
+            req.initial_pose.position.x = -7.5
+            req.initial_pose.position.y = -5.0
+            req.initial_pose.position.z = 1.0
+            req.reference_frame = 'world'
+            self.spawn_client.call_async(req)
+            self.get_logger().info(f'Spawned new box_payload right in front of drone 1!')
+            
+        threading.Thread(target=delayed_spawn).start()
 
     def pick_object(self):
         if self.holding:
             self.get_logger().info('Already holding an object')
             return
-        if self.z > 2.0:
-            self.get_logger().info('Too high to pick object! Land first.')
+            
+        # We need to know where the box is to pick it up!
+        if not hasattr(self, 'box_pose') or self.box_pose is None:
+            self.get_logger().info('Cannot find box in the world. Is it spawned?')
             return
+            
+        # Calculate distance between drone and box
+        drone_pos = self.current_positions[self.drone_name]
+        dx = drone_pos[0] - self.box_pose.position.x
+        dy = drone_pos[1] - self.box_pose.position.y
+        dz = drone_pos[2] - self.box_pose.position.z
+        
+        dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+        
+        # If the drone is within 3.5 meters of the box, it can grab it!
+        if dist > 3.5:
+            self.get_logger().info(f'Too far to pick up! Distance: {dist:.1f}m. Hover closer to the box.')
+            return
+            
         self.holding = 'box_payload'
-        self.get_logger().info(f'Picked up box_payload')
+        self.get_logger().info(f'Successfully picked up box_payload!')
 
     def drop_object(self):
         if not self.holding:
@@ -212,6 +276,9 @@ def main():
         teleop.spawn_box()
         
         while True:
+            # Continuously update the held object's position to prevent gravity from pulling it down
+            teleop.update_held_object()
+            
             # 1. Get key from OpenCV windows (if focused)
             cv_k = teleop.show_cameras()
             
@@ -227,7 +294,7 @@ def main():
             if not key:
                 continue
                 
-            step = 2.0
+            step = 1.5
             
             if key in ['1', '2', '3', '4']:
                 teleop.switch_drone(int(key))
