@@ -71,6 +71,9 @@ class TeleopNode(Node):
         self.drone_name = 'drone1'
         self.holding = None
         self.box_poses = {}
+        
+        # --- BATTERY TRACKING ---
+        self.batteries = {'drone1': 100.0, 'drone2': 100.0, 'drone3': 100.0, 'drone4': 100.0}
 
         # --- MODEL TRACKING ---
         # Must import inside or at top level. Let's do it here for safety.
@@ -104,22 +107,41 @@ class TeleopNode(Node):
         try:
             self.frames[drone_id] = self.bridge.imgmsg_to_cv2(msg, "bgr8")
         except Exception as e:
-            pass
+            self.get_logger().error(f'CV bridge error: {e}')
 
     def show_cameras(self):
-        cv_key = -1
-        for i in range(1, 5):
-            drone_id = f'drone{i}'
-            if self.frames[drone_id] is not None:
-                frame = self.frames[drone_id].copy()
-                if drone_id == self.drone_name:
-                    cv2.rectangle(frame, (0,0), (frame.shape[1]-1, frame.shape[0]-1), (0,255,0), 10)
-                cv2.imshow(f'Drone {i} View', frame)
-        # Process OpenCV GUI events and get key if window is focused
-        k = cv2.waitKey(10)
-        if k != -1:
-            cv_key = k & 0xFF
-        return cv_key
+        key = -1
+        for d_id, frame in self.frames.items():
+            if frame is not None:
+                frame = frame.copy()
+                # Highlight active drone
+                if d_id == self.drone_name:
+                    cv2.rectangle(frame, (0, 0), (frame.shape[1]-1, frame.shape[0]-1), (0, 255, 0), 3)
+                
+                # Get center pixel color for fun
+                h, w = frame.shape[:2]
+                
+                # Add simple crosshair
+                cv2.line(frame, (w//2-5, h//2), (w//2+5, h//2), (255, 0, 0), 1)
+                cv2.line(frame, (w//2, h//2-5), (w//2, h//2+5), (255, 0, 0), 1)
+                
+                # Put coordinate & battery text at the bottom
+                pos = self.current_positions[d_id]
+                batt = self.batteries[d_id]
+                text = f"(x={int(pos[0])},y={int(pos[1])}) | Batt: {batt:.1f}%"
+                
+                # Turn background red if battery is very low (< 20%)
+                bg_color = (0, 0, 255) if batt < 20.0 else (255, 255, 255)
+                text_color = (255, 255, 255) if batt < 20.0 else (0, 0, 0)
+                
+                cv2.rectangle(frame, (0, h-20), (w, h), bg_color, -1)
+                cv2.putText(frame, text, (5, h-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, text_color, 1)
+                
+                cv2.imshow(f'{d_id.capitalize()} View', frame)
+                k = cv2.waitKey(1)
+                if k != -1:
+                    key = k
+        return key
 
     # ---------------------------------------------------------------------
     # Pose helpers
@@ -147,12 +169,22 @@ class TeleopNode(Node):
     # Movement
     # ---------------------------------------------------------------------
     def move(self, dx, dy, dz):
+        # Calculate distance for battery drain
+        dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+        
+        # Apply battery drain: 0.1% per meter, plus 0.2% penalty if carrying a payload
+        drain_rate = 0.1
+        if self.holding:
+            drain_rate += 0.2
+        
+        self.batteries[self.drone_name] = max(0.0, self.batteries[self.drone_name] - (dist * drain_rate))
+        
         pos = self.current_positions[self.drone_name]
         pos[0] += dx
         pos[1] += dy
         pos[2] += dz
         self._set_pose(pos[0], pos[1], pos[2])
-        self.get_logger().info(f'{self.drone_name} -> ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})')
+        self.get_logger().info(f'{self.drone_name} -> ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f}) | Battery: {self.batteries[self.drone_name]:.1f}%')
 
     def toggle_takeoff(self):
         z = self.current_positions[self.drone_name][2]
