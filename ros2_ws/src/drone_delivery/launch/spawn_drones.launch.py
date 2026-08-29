@@ -1,5 +1,6 @@
 import os
 from launch import LaunchDescription
+# pyrefly: ignore [missing-import]
 from launch_ros.actions import Node
 
 def generate_launch_description():

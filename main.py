@@ -6,6 +6,7 @@ import time
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from modules.decision_engine import AIDecisionEngine
+# pyrefly: ignore [missing-import]
 from benchmark import run_benchmarks
 
 def main():
