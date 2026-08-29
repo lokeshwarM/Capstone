@@ -40,10 +40,10 @@ HELP_MSG = """
 ║  DRONE ACTIONS   │  P=Pick package from truck                ║
 ║  (MANUAL mode)   │  X=Drop held package at destination       ║
 ╠══════════════════════════════════════════════════════════════╣
-║  TRUCK CONTROL   │  ↑ Arrow = Forward (+X)                   ║
-║  (ALWAYS works)  │  ↓ Arrow = Backward (-X)                  ║
-║                  │  ← Arrow = Left (+Y)                      ║
-║                  │  → Arrow = Right (-Y)                     ║
+║  TRUCK CONTROL   │  ↑ Arrow or I = Forward (+X)              ║
+║  (ALWAYS works)  │  ↓ Arrow or K = Backward (-X)             ║
+║                  │  ← Arrow or J = Left (+Y)                 ║
+║                  │  → Arrow or L = Right (-Y)                ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  MODE TOGGLE     │  M = Switch MANUAL ↔ AUTO (ACO)          ║
 ║  QUIT            │  CTRL-C                                   ║
@@ -55,40 +55,28 @@ AUTO mode: Drones communicate, pick by battery priority, deliver, return.
 # 15 visually distinct package colours (RGB 0-1)
 # ──────────────────────────────────────────────────────────────────────────────
 PKG_COLORS = [
-    (1.00, 0.10, 0.10),  # Vivid Red
-    (0.10, 0.80, 0.10),  # Vivid Green
-    (0.10, 0.30, 1.00),  # Vivid Blue
-    (1.00, 0.90, 0.00),  # Yellow
-    (1.00, 0.10, 0.80),  # Magenta
-    (0.00, 0.90, 0.90),  # Cyan
-    (1.00, 0.50, 0.00),  # Orange
-    (0.60, 0.00, 1.00),  # Violet
-    (0.00, 0.60, 0.30),  # Dark Teal
-    (1.00, 0.20, 0.50),  # Hot Pink
-    (0.00, 0.50, 1.00),  # Sky Blue
-    (0.60, 1.00, 0.00),  # Lime
-    (0.55, 0.27, 0.07),  # Brown
-    (0.00, 0.80, 0.60),  # Mint
-    (0.90, 0.60, 0.10),  # Gold
+    (1.00, 0.10, 0.10), (0.10, 0.80, 0.10), (0.10, 0.30, 1.00),
+    (1.00, 0.90, 0.00), (1.00, 0.10, 0.80), (0.00, 0.90, 0.90),
+    (1.00, 0.50, 0.00), (0.60, 0.00, 1.00), (0.00, 0.60, 0.30),
+    (1.00, 0.20, 0.50), (0.00, 0.50, 1.00), (0.60, 1.00, 0.00),
+    (0.55, 0.27, 0.07), (0.00, 0.80, 0.60), (0.90, 0.60, 0.10),
 ]
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Drone visual colours matching route lines
-# ──────────────────────────────────────────────────────────────────────────────
 DRONE_COLORS = {
-    'drone1': (1.0, 0.2, 0.2),   # Red
-    'drone2': (0.2, 1.0, 0.2),   # Green
-    'drone3': (0.3, 0.5, 1.0),   # Blue
-    'drone4': (1.0, 0.9, 0.1),   # Yellow
+    'drone1': (1.0, 0.2, 0.2),
+    'drone2': (0.2, 1.0, 0.2),
+    'drone3': (0.3, 0.5, 1.0),
+    'drone4': (1.0, 0.9, 0.1),
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
 # SDF helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _box_sdf(name, sx, sy, sz, r, g, b, a=1.0, static=True, gravity=False):
+def _box_sdf(name, sx, sy, sz, r, g, b, a=1.0, static=False, gravity=False):
     st = "true" if static else "false"
     gv = "0" if not gravity else "1"
+    # Removed <collision> completely so Gazebo physics ignores it, fixing visual lag
     return (f'<?xml version="1.0"?><sdf version="1.6">'
             f'<model name="{name}"><static>{st}</static>'
             f'<link name="link"><gravity>{gv}</gravity>'
@@ -96,8 +84,6 @@ def _box_sdf(name, sx, sy, sz, r, g, b, a=1.0, static=True, gravity=False):
             f'<size>{sx} {sy} {sz}</size></box></geometry>'
             f'<material><ambient>{r} {g} {b} {a}</ambient>'
             f'<diffuse>{r} {g} {b} {a}</diffuse></material></visual>'
-            f'<collision name="c"><geometry><box>'
-            f'<size>{sx} {sy} {sz}</size></box></geometry></collision>'
             f'</link></model></sdf>')
 
 def _cylinder_sdf(name, radius, length, r, g, b, a=1.0, static=True):
@@ -113,15 +99,13 @@ def _cylinder_sdf(name, radius, length, r, g, b, a=1.0, static=True):
             f'</link></model></sdf>')
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Keyboard input thread — handles both regular keys AND arrow escape sequences
+# Keyboard input thread
 # ──────────────────────────────────────────────────────────────────────────────
 
 def keyboard_reader_thread(orig_settings, key_q: queue.Queue):
     ARROW_MAP = {
-        '\x1b[A': 'ARROW_UP',
-        '\x1b[B': 'ARROW_DOWN',
-        '\x1b[C': 'ARROW_RIGHT',
-        '\x1b[D': 'ARROW_LEFT',
+        '\x1b[A': 'ARROW_UP', '\x1b[B': 'ARROW_DOWN', '\x1b[C': 'ARROW_RIGHT', '\x1b[D': 'ARROW_LEFT',
+        '\x1bOA': 'ARROW_UP', '\x1bOB': 'ARROW_DOWN', '\x1bOC': 'ARROW_RIGHT', '\x1bOD': 'ARROW_LEFT',
     }
     fd = sys.stdin.fileno()
     while True:
@@ -167,7 +151,7 @@ class TeleopNode(Node):
     ]
 
     TRUCK_START  = [0.0, -37.5, 1.5]
-    TRUCK_SPEED  = 3.0
+    TRUCK_SPEED  = 2.0
     CRUISE_ALT   = 50.0
     PICKUP_HOVER = 5.0
 
@@ -184,8 +168,6 @@ class TeleopNode(Node):
         self.get_logger().info('Services ready.')
 
         self.truck_pos = list(self.TRUCK_START)
-
-        # Positions are populated dynamically from /model_states
         self.current_positions = {}
         self.drone_name = 'drone1'
         self.holding = None
@@ -193,18 +175,9 @@ class TeleopNode(Node):
         self.batteries = {f'drone{i}': 100.0 for i in range(1, 5)}
         self.packages = {}
 
-        # ── ACO / Auto ────────────────────────────────────────────────────────
-        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-        try:
-            from modules.aco_solver import ACOSolver
-            self.aco_solver = ACOSolver()
-        except ImportError as e:
-            self.aco_solver = None
-
         self.mode = 'manual'
         self.last_mode_toggle_time = 0.0
 
-        # Start states as RETURNING_TO_TRUCK so they naturally fly from city center
         self.drone_states   = {f'drone{i}': 'RETURNING_TO_TRUCK' for i in range(1, 5)}
         self.drone_targets  = {f'drone{i}': None   for i in range(1, 5)}
         self.drone_payloads = {f'drone{i}': None   for i in range(1, 5)}
@@ -230,7 +203,6 @@ class TeleopNode(Node):
                     self.box_poses[name] = msg.pose[i]
                 elif name in self.drone_states:
                     if name not in self.current_positions:
-                        # Initialize from reality (no teleporting!)
                         p = msg.pose[i].position
                         self.current_positions[name] = [p.x, p.y, p.z]
                         self.get_logger().info(f'Initialized {name} at ({p.x:.1f}, {p.y:.1f}, {p.z:.1f})')
@@ -272,7 +244,6 @@ class TeleopNode(Node):
             pkg_str   = f' ▲{payload}' if payload else ''
             mode_str  = 'AUTO' if self.mode == 'auto' else 'MAN'
             
-            # Use shorter abbreviations for HUD
             abbr = state.split('_')[0][:4]
             if state == 'WAITING_FOR_TRUCK': abbr = 'WAIT'
             if state == 'CLIMBING_FROM_TRUCK': abbr = 'CLMB'
@@ -347,8 +318,7 @@ class TeleopNode(Node):
     # ── Manual drone movement ─────────────────────────────────────────────────
 
     def move(self, dx, dy, dz):
-        if self.drone_name not in self.current_positions:
-            return
+        if self.drone_name not in self.current_positions: return
         dist = math.sqrt(dx*dx + dy*dy + dz*dz)
         self._drain(self.drone_name, dist, bool(self.holding))
         pos = self.current_positions[self.drone_name]
@@ -358,8 +328,7 @@ class TeleopNode(Node):
         self._set_pose(pos[0], pos[1], pos[2])
 
     def toggle_takeoff(self):
-        if self.drone_name not in self.current_positions:
-            return
+        if self.drone_name not in self.current_positions: return
         z = self.current_positions[self.drone_name][2]
         target = 50.0 if z < 5.0 else 0.5
         self.move(0, 0, target - z)
@@ -397,15 +366,14 @@ class TeleopNode(Node):
         row = slot // 3
         sx = tx - 2.5 + col * 1.2
         sy = ty - 1.2 + row * 0.6
-        sz = tz + 1.8  # elevated above truck bed to avoid physics collision
+        sz = tz + 1.8
         return sx, sy, sz
 
     # ── Mission setup ─────────────────────────────────────────────────────────
 
     def setup_mission(self):
-        self.get_logger().info('Setting up mission (YOLO drones will be retained)...')
+        self.get_logger().info('Setting up mission...')
 
-        # ── Spawn delivery truck ──────────────────────────────────────────────
         truck_xml = (
             '<?xml version="1.0"?><sdf version="1.6">'
             '<model name="delivery_truck"><static>false</static>'
@@ -422,9 +390,6 @@ class TeleopNode(Node):
         self._spawn('delivery_truck', truck_xml, self.truck_pos[0], self.truck_pos[1], self.truck_pos[2])
         time.sleep(0.4)
 
-        # Note: We DO NOT spawn the visual drone models anymore to preserve the YOLOv8 drones.
-
-        # ── Spawn 15 packages on truck ────────────────────────────────────────
         self.packages = {}
         random.seed(None)
 
@@ -446,9 +411,8 @@ class TeleopNode(Node):
                 'delivered':  False,
             }
 
-            # static=True ensures gazebo physics gravity/collisions do not pop them off the truck
-            pkg_xml = _box_sdf(pkg_name, 0.85, 0.85, 0.85,
-                               r, g, b, 1.0, static=True, gravity=False)
+            # static=False, collision removed -> smooth cinematic movement with SetEntityState!
+            pkg_xml = _box_sdf(pkg_name, 0.85, 0.85, 0.85, r, g, b, 1.0, static=False, gravity=False)
             self._spawn(pkg_name, pkg_xml, sx, sy, sz)
             time.sleep(0.04)
 
@@ -457,9 +421,7 @@ class TeleopNode(Node):
     # ── Manual pick / drop ────────────────────────────────────────────────────
 
     def pick_object(self):
-        if self.holding or self.drone_name not in self.current_positions:
-            return
-
+        if self.holding or self.drone_name not in self.current_positions: return
         pos = self.current_positions[self.drone_name]
         tx, ty = self.truck_pos[0], self.truck_pos[1]
         if math.sqrt((pos[0]-tx)**2 + (pos[1]-ty)**2) > 7.0:
@@ -474,18 +436,15 @@ class TeleopNode(Node):
                     self.holding       = pkg_name
                     break
 
-        if not self.holding:
-            return
+        if not self.holding: return
 
         dest = self.packages[self.holding]['dest']
         cr, cg, cb = self.packages[self.holding]['color']
-        
         marker_xml = _cylinder_sdf(f'marker_{self.holding}', 1.5, 20.0, cr, cg, cb, 0.6)
         self._spawn(f'marker_{self.holding}', marker_xml, dest[0], dest[1], dest[2] + 10.0)
 
     def drop_object(self):
-        if not self.holding or self.drone_name not in self.current_positions:
-            return
+        if not self.holding or self.drone_name not in self.current_positions: return
 
         pkg = self.holding
         self.holding = None
@@ -511,16 +470,14 @@ class TeleopNode(Node):
 
     def toggle_mode(self):
         now = time.time()
-        if now - self.last_mode_toggle_time < 0.5:
-            return
+        if now - self.last_mode_toggle_time < 0.5: return
         self.last_mode_toggle_time = now
 
         if self.mode == 'manual':
             self.mode = 'auto'
             self.get_logger().info('★ AUTO MODE activated')
             for d_id in self.drone_states:
-                # Ensure they fly from their CURRENT real positions
-                if self.drone_states[d_id] == 'IDLE' and not self.drone_payloads.get(d_id):
+                if self.drone_states[d_id] in ['IDLE', 'RESTING'] and not self.drone_payloads.get(d_id):
                     self.drone_states[d_id] = 'RETURNING_TO_TRUCK'
         else:
             self.mode = 'manual'
@@ -535,11 +492,9 @@ class TeleopNode(Node):
         return None
 
     def get_truck_occupant(self):
-        """Returns the drone_id currently descending, picking, or climbing from truck."""
-        occupying = ['APPROACHING_TRUCK', 'DESCENDING_TO_TRUCK', 'IDLE', 'PICKING_UP', 'CLIMBING_FROM_TRUCK']
+        occupying = ['APPROACHING_TRUCK', 'DESCENDING_TO_TRUCK', 'IDLE', 'PICKING_UP', 'CLIMBING_FROM_TRUCK', 'DESCENDING_TO_REST']
         for d_id, state in self.drone_states.items():
-            if state in occupying:
-                return d_id
+            if state in occupying: return d_id
         return None
 
     def _draw_route(self, d_id, sx, sy, ex, ey):
@@ -564,19 +519,19 @@ class TeleopNode(Node):
         step = 0.0
 
         if horiz > horiz_tol:
-            # Climb or Cruise
             if pos[2] < self.CRUISE_ALT - 0.5:
-                step = min(1.5, self.CRUISE_ALT - pos[2])
+                # Decreased step from 1.5 to 0.4 for realistic speed
+                step = min(0.4, self.CRUISE_ALT - pos[2])
                 pos[2] += step
             else:
-                step = min(1.5, horiz)
+                step = min(0.4, horiz)
                 pos[0] += step * dx / horiz
                 pos[1] += step * dy / horiz
         else:
-            # Descend
             z_diff = tz - pos[2]
             if abs(z_diff) > 0.5:
-                step = min(1.2, abs(z_diff))
+                # Decreased descent step to 0.2 for realistic speed
+                step = min(0.2, abs(z_diff))
                 pos[2] += math.copysign(step, z_diff)
             else:
                 if next_state not in ['PICKING_UP', 'WAITING_FOR_TRUCK', 'RESTING']:
@@ -587,23 +542,19 @@ class TeleopNode(Node):
         self._set_pose_auto(d_id, pos[0], pos[1], pos[2])
 
     def auto_tick(self):
-        """Intelligent queuing state machine based on AI engine specs."""
-        
-        # ── 1. Queue Management (Battery Priority Yielding) ──
+        # 1. Queue Management
         occupant = self.get_truck_occupant()
         if occupant is None:
             waiting = [d for d, st in self.drone_states.items() if st == 'WAITING_FOR_TRUCK']
             if waiting:
-                # Lowest battery gets access first! Others yield.
                 waiting.sort(key=lambda d: self.batteries[d])
                 winner = waiting[0]
                 self.drone_states[winner] = 'APPROACHING_TRUCK'
                 self.get_logger().info(f'[COORDINATION] {winner} won truck access (lowest batt: {self.batteries[winner]:.1f}%).')
 
-        # ── 2. State Advancements ──
+        # 2. State Advancements
         for d_id in list(self.drone_states.keys()):
-            if d_id not in self.current_positions or self.batteries[d_id] <= 0:
-                continue
+            if d_id not in self.current_positions or self.batteries[d_id] <= 0: continue
 
             state = self.drone_states[d_id]
             pos   = self.current_positions[d_id]
@@ -618,11 +569,9 @@ class TeleopNode(Node):
                     self._fly_to_target(d_id, tx, ty, self.CRUISE_ALT, 15.0, 'WAITING_FOR_TRUCK', has_payload)
 
             elif state == 'WAITING_FOR_TRUCK':
-                # Hover and wait in the sky for truck access
                 self._drain(d_id, 0.0, has_payload)
 
             elif state == 'APPROACHING_TRUCK':
-                # Line up directly above truck
                 tx, ty = self.truck_pos[0], self.truck_pos[1]
                 self._fly_to_target(d_id, tx, ty, self.CRUISE_ALT, 0.5, 'DESCENDING_TO_TRUCK', has_payload)
 
@@ -639,15 +588,23 @@ class TeleopNode(Node):
                     self.drone_targets[d_id] = self.packages[pkg]['dest']
                     self.drone_states[d_id] = 'PICKING_UP'
                 else:
-                    self.drone_states[d_id] = 'RESTING'
+                    self.drone_states[d_id] = 'DESCENDING_TO_REST'
 
-            elif state == 'RESTING':
-                # No packages left! Find personal resting slot on truck.
+            elif state == 'DESCENDING_TO_REST':
                 rest_offsets = {'drone1': (2,1), 'drone2': (2,-1), 'drone3': (-2,1), 'drone4': (-2,-1)}
                 rx, ry = rest_offsets.get(d_id, (0,0))
                 tx, ty, tz = self.truck_pos
                 self._fly_to_target(d_id, tx + rx, ty + ry, tz + 0.6, 0.5, 'RESTING', False)
-                self.batteries[d_id] = min(100.0, self.batteries[d_id] + 0.03) # Slow charge on truck
+
+            elif state == 'RESTING':
+                rest_offsets = {'drone1': (2,1), 'drone2': (2,-1), 'drone3': (-2,1), 'drone4': (-2,-1)}
+                rx, ry = rest_offsets.get(d_id, (0,0))
+                tx, ty, tz = self.truck_pos
+                pos[0] = tx + rx
+                pos[1] = ty + ry
+                pos[2] = tz + 0.6
+                self._set_pose_auto(d_id, pos[0], pos[1], pos[2])
+                self.batteries[d_id] = min(100.0, self.batteries[d_id] + 0.03)
 
             elif state == 'PICKING_UP':
                 pkg = self.drone_payloads[d_id]
@@ -664,7 +621,6 @@ class TeleopNode(Node):
                 self.drone_states[d_id] = 'CLIMBING_FROM_TRUCK'
 
             elif state == 'CLIMBING_FROM_TRUCK':
-                # Climb away from truck to clear the bottleneck for others
                 self._fly_to_target(d_id, pos[0], pos[1], self.CRUISE_ALT, 0.5, 'FLYING_TO_DROP', has_payload)
 
             elif state == 'FLYING_TO_DROP':
@@ -724,24 +680,24 @@ def main():
             except queue.Empty:
                 term_k = None
 
-            if term_k == 'ARROW_UP':
+            # Support both Arrow keys AND IJKL for driving the truck to be foolproof
+            if term_k == 'ARROW_UP' or k == 'i':
                 teleop._move_truck(TeleopNode.TRUCK_SPEED, 0)
                 continue
-            elif term_k == 'ARROW_DOWN':
+            elif term_k == 'ARROW_DOWN' or k == 'k':
                 teleop._move_truck(-TeleopNode.TRUCK_SPEED, 0)
                 continue
-            elif term_k == 'ARROW_LEFT':
+            elif term_k == 'ARROW_LEFT' or k == 'j':
                 teleop._move_truck(0, TeleopNode.TRUCK_SPEED)
                 continue
-            elif term_k == 'ARROW_RIGHT':
+            elif term_k == 'ARROW_RIGHT' or k == 'l':
                 teleop._move_truck(0, -TeleopNode.TRUCK_SPEED)
                 continue
 
             if term_k:
                 k = term_k.lower() if len(term_k) == 1 else None
 
-            if not k:
-                continue
+            if not k: continue
 
             if k == '\x03': break
             if k == 'm':
