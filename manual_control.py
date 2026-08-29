@@ -76,10 +76,12 @@ DRONE_COLORS = {
 def _box_sdf(name, sx, sy, sz, r, g, b, a=1.0, static=False, gravity=False):
     st = "true" if static else "false"
     gv = "0" if not gravity else "1"
-    # Removed <collision> completely so Gazebo physics ignores it, fixing visual lag
+    # Added <inertial> to prevent Gazebo from deleting the model due to NaN physics.
+    # Kept <collision> out so it remains a visual kinematic object without physics clipping!
     return (f'<?xml version="1.0"?><sdf version="1.6">'
             f'<model name="{name}"><static>{st}</static>'
             f'<link name="link"><gravity>{gv}</gravity>'
+            f'<inertial><mass>0.1</mass><inertia><ixx>0.01</ixx><iyy>0.01</iyy><izz>0.01</izz></inertia></inertial>'
             f'<visual name="v"><geometry><box>'
             f'<size>{sx} {sy} {sz}</size></box></geometry>'
             f'<material><ambient>{r} {g} {b} {a}</ambient>'
