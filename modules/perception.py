@@ -138,9 +138,10 @@ class OpticalFlowTracker:
 
         if p0 is not None and len(p0) > 0:
             p1, st, err = cv2.calcOpticalFlowPyrLK(old_gray, new_gray, p0, None, **self.lk_params)
-            good_new = p1[st == 1]
-            good_old = p0[st == 1]
+            good_new = p1[st.flatten() == 1]
+            good_old = p0[st.flatten() == 1]
             var_dist = self.calculate_tracking_variance(good_old, good_new)
+            good_new = good_new.reshape(-1, 1, 2)
             return good_new, st, var_dist
         else:
             return np.array([]), np.array([]), 25.0

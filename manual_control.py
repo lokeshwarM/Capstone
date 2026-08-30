@@ -7,11 +7,26 @@ from gazebo_msgs.srv import SetEntityState, SpawnEntity, DeleteEntity
 # pyrefly: ignore [missing-import]
 from sensor_msgs.msg import Image
 # pyrefly: ignore [missing-import]
+# pyrefly: ignore [missing-import]
 from gazebo_msgs.msg import ModelStates
 # pyrefly: ignore [missing-import]
 from cv_bridge import CvBridge
+# pyrefly: ignore [missing-import]
+from std_msgs.msg import String
+
 import sys
 import os
+import termios
+import tty
+import select
+import threading
+import queue
+import json
+
+# Ensure current directory is in python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from modules.decision_engine import AIDecisionEngine
+from modules.optimization import ALNSRouter
 import termios
 import tty
 import select
@@ -196,6 +211,12 @@ class TeleopNode(Node):
             cv2.namedWindow(f'Drone {i} View', cv2.WINDOW_NORMAL)
             cv2.resizeWindow(f'Drone {i} View', 320, 240)
 
+        # AI Decision Engine Integration
+        self.engine = AIDecisionEngine(conf_threshold=0.65, drift_threshold=15.0, battery_threshold=20.0, bw_threshold=5.0)
+        self.alns_router = ALNSRouter()
+        self.telemetry_data = {}
+        self.telemetry_sub = self.create_subscription(String, '/swarm_telemetry', self._telemetry_cb, 10)
+
     # ── Callbacks ─────────────────────────────────────────────────────────────
 
     def _model_cb(self, msg):
@@ -214,6 +235,15 @@ class TeleopNode(Node):
     def _image_cb(self, msg, drone_id):
         try:
             self.frames[drone_id] = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+        except Exception:
+            pass
+
+    def _telemetry_cb(self, msg):
+        try:
+            data = json.loads(msg.data)
+            d_id = data.get('drone_id')
+            if d_id:
+                self.telemetry_data[f'drone{d_id}'] = data
         except Exception:
             pass
 
@@ -547,12 +577,48 @@ class TeleopNode(Node):
         # 1. Queue Management
         occupant = self.get_truck_occupant()
         if occupant is None:
-            waiting = [d for d, st in self.drone_states.items() if st == 'WAITING_FOR_TRUCK']
+            waiting = [d for d, st in self.drone_states.items() if st == 'WAITING_FOR_TRUCK' and self.batteries[d] > 20.0]
             if waiting:
                 waiting.sort(key=lambda d: self.batteries[d])
                 winner = waiting[0]
                 self.drone_states[winner] = 'APPROACHING_TRUCK'
                 self.get_logger().info(f'[COORDINATION] {winner} won truck access (lowest batt: {self.batteries[winner]:.1f}%).')
+
+        # Evaluate ALNS Re-Routing triggers for all drones
+        for d_id, state in self.drone_states.items():
+            if self.batteries[d_id] <= 0: continue
+            
+            # Use real telemetry if available (drone1 publishes this), else default to safe values
+            tel = self.telemetry_data.get(d_id, {})
+            state_vector = {
+                'confidence_Sk': tel.get('confidence_Sk', 0.8),
+                'drift_variance': tel.get('drift_variance', 5.0),
+                'battery_soc': self.batteries[d_id],
+                'bandwidth_bk': 8.0,
+                'drone_id': int(d_id[-1])
+            }
+            
+            actions = self.engine.evaluate_state_vector(state_vector)
+            
+            # TRIGGER ALNS Destroy and Repair Re-allocation
+            if actions.get('battery_alert') and state not in ['IDLE', 'RESTING', 'WAITING_FOR_TRUCK', 'EMERGENCY_LANDING']:
+                self.get_logger().warn(f"[ALNS EVENT] {d_id} battery critical ({self.batteries[d_id]:.1f}%)! {actions.get('route_action')}")
+                
+                # ALNS Destroy Phase: Remove payload from failing drone
+                if self.drone_payloads.get(d_id):
+                    failed_pkg = self.drone_payloads[d_id]
+                    self.drone_payloads[d_id] = None
+                    
+                    # ALNS Repair Phase: Reallocate task to available swarm pool (greedy)
+                    with self._pkg_lock:
+                        self.packages[failed_pkg]['claimed_by'] = None
+                        self.packages[failed_pkg]['on_truck'] = True
+                    sx, sy, sz = self._pkg_slot_pos(self.packages[failed_pkg]['slot'])
+                    self._set_entity_pose(failed_pkg, sx, sy, sz)
+                    self._del_route(d_id)
+                
+                # Initiate safe emergency landing behavior
+                self.drone_states[d_id] = 'EMERGENCY_LANDING'
 
         # 2. State Advancements
         for d_id in list(self.drone_states.keys()):
@@ -644,6 +710,16 @@ class TeleopNode(Node):
                     self.delete_client.call_async(del_req)
                     self.get_logger().info(f'{d_id}: ✔ delivered {pkg}')
                 self.drone_states[d_id] = 'RETURNING_TO_TRUCK'
+                
+            elif state == 'EMERGENCY_LANDING':
+                # ALNS trigger forced the drone to abandon mission and land immediately
+                self._drain(d_id, 0.0, has_payload)
+                if pos[2] > 0.5:
+                    step = min(0.4, pos[2] - 0.5)
+                    pos[2] -= step
+                    self._set_pose_auto(d_id, pos[0], pos[1], pos[2])
+                else:
+                    self.batteries[d_id] = 0.0 # Force offline
 
 
 # ──────────────────────────────────────────────────────────────────────────────
