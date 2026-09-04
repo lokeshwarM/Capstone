@@ -340,7 +340,8 @@ class TeleopNode(Node):
         payload = self.drone_payloads.get(d_id)
         if payload:
             data = self.packages.get(payload, {})
-            if not data.get('delivered') and not data.get('on_truck'):
+            # Only move the package if it exists in our registry, is not delivered, and is not on truck
+            if data and not data.get('delivered') and not data.get('on_truck'):
                 self._set_entity_pose(payload, x, y, z - 0.6)
 
     def _drain(self, d_id, dist, has_payload=False):
@@ -634,23 +635,35 @@ class TeleopNode(Node):
                 sx, sy, sz = self._drone_slot_pos(d_id)
                 pos[0], pos[1], pos[2] = sx, sy, sz
                 self._set_entity_pose(d_id, sx, sy, sz)
-                self.batteries[d_id] = min(100.0, self.batteries[d_id] + 0.05)  # faster charging on slot
+                self.batteries[d_id] = min(100.0, self.batteries[d_id] + 0.05)
 
-                # Claim next available package
-                pkg = self._next_unclaimed()
-                if pkg:
-                    with self._pkg_lock:
-                        self.packages[pkg]['claimed_by'] = d_id
-                    self.drone_payloads[d_id] = pkg
-                    self.drone_targets[d_id] = self.packages[pkg]['dest']
+                # Atomic check-and-claim: re-verify inside lock to prevent race condition
+                claimed_pkg = None
+                with self._pkg_lock:
+                    for pkg_name, data in self.packages.items():
+                        if data['on_truck'] and not data['delivered'] and data['claimed_by'] is None:
+                            data['claimed_by'] = d_id
+                            claimed_pkg = pkg_name
+                            break
+
+                if claimed_pkg:
+                    self.drone_payloads[d_id] = claimed_pkg
+                    self.drone_targets[d_id] = self.packages[claimed_pkg]['dest']
                     self.drone_states[d_id] = 'RISING_TO_PICKUP'
-                    self.get_logger().info(f'[SLOT] {d_id} claimed {pkg} → rising to pick up')
+                    self.get_logger().info(f'[SLOT] {d_id} claimed {claimed_pkg} → rising to pick up')
 
-            # ── RISING_TO_PICKUP: Lift off 3m above slot to grab package ───────
+            # ── RISING_TO_PICKUP: Lift off above slot to grab package ──────────
             elif state == 'RISING_TO_PICKUP':
-                sx, sy, sz = self._drone_slot_pos(d_id)
-                hover_z = sz + 4.0  # 4m above slot (above truck roof)
-                self._fly_to_target(d_id, sx, sy, hover_z, 0.4, 'PICKING_UP', False)
+                # Safety check: abort if our package was stolen by another drone (race)
+                pkg = self.drone_payloads.get(d_id)
+                if not pkg or self.packages.get(pkg, {}).get('claimed_by') != d_id:
+                    self.drone_payloads[d_id] = None
+                    self.drone_targets[d_id] = None
+                    self.drone_states[d_id] = 'LANDING_ON_SLOT'
+                else:
+                    sx, sy, sz = self._drone_slot_pos(d_id)
+                    hover_z = sz + 4.0
+                    self._fly_to_target(d_id, sx, sy, hover_z, 0.4, 'PICKING_UP', False)
 
             # ── PICKING_UP: Attach package and draw delivery route ─────────────
             elif state == 'PICKING_UP':
@@ -669,8 +682,13 @@ class TeleopNode(Node):
 
             # ── FLYING_TO_DROP: Cruise at altitude toward delivery point ────────
             elif state == 'FLYING_TO_DROP':
-                dest = self.drone_targets[d_id]
-                self._fly_to_target(d_id, dest[0], dest[1], self.CRUISE_ALT, 1.0, 'DESCENDING_TO_DROP', has_payload)
+                dest = self.drone_targets.get(d_id)
+                # Guard: if somehow we have no destination/payload, go home
+                if not dest or not self.drone_payloads.get(d_id):
+                    self.drone_payloads[d_id] = None
+                    self.drone_states[d_id] = 'LANDING_ON_SLOT'
+                else:
+                    self._fly_to_target(d_id, dest[0], dest[1], self.CRUISE_ALT, 1.0, 'DESCENDING_TO_DROP', has_payload)
 
             # ── DESCENDING_TO_DROP: Descend to building/road level ─────────────
             elif state == 'DESCENDING_TO_DROP':
