@@ -195,7 +195,7 @@ class TeleopNode(Node):
         self.mode = 'manual'
         self.last_mode_toggle_time = 0.0
 
-        self.drone_states   = {f'drone{i}': 'RETURNING_TO_TRUCK' for i in range(1, 5)}
+        self.drone_states   = {f'drone{i}': 'LANDING_ON_SLOT' for i in range(1, 5)}
         self.drone_targets  = {f'drone{i}': None   for i in range(1, 5)}
         self.drone_payloads = {f'drone{i}': None   for i in range(1, 5)}
 
@@ -392,6 +392,13 @@ class TeleopNode(Node):
                 sx, sy, sz = self._pkg_slot_pos(data['slot'])
                 self._set_entity_pose(pkg, sx, sy, sz)
 
+        # Keep resting drones glued to their slots when truck moves
+        for d_id, state in self.drone_states.items():
+            if state == 'RESTING_ON_SLOT' and d_id in self.current_positions:
+                sx, sy, sz = self._drone_slot_pos(d_id)
+                self.current_positions[d_id] = [sx, sy, sz]
+                self._set_entity_pose(d_id, sx, sy, sz)
+
     def _pkg_slot_pos(self, slot):
         tx, ty, tz = self.truck_pos
         col = slot % 3
@@ -400,6 +407,18 @@ class TeleopNode(Node):
         sy = ty - 1.2 + row * 0.6
         sz = tz + 1.8
         return sx, sy, sz
+
+    def _drone_slot_pos(self, d_id):
+        """Fixed landing pad positions on the truck roof for each drone."""
+        tx, ty, tz = self.truck_pos
+        offsets = {
+            'drone1': (-2.5,  1.0),
+            'drone2': (-2.5, -1.0),
+            'drone3': ( 0.5,  1.0),
+            'drone4': ( 0.5, -1.0),
+        }
+        ox, oy = offsets.get(d_id, (0, 0))
+        return tx + ox, ty + oy, tz + 2.8  # sits on top of truck body
 
     # ── Mission setup ─────────────────────────────────────────────────────────
 
@@ -509,8 +528,9 @@ class TeleopNode(Node):
             self.mode = 'auto'
             self.get_logger().info('★ AUTO MODE activated')
             for d_id in self.drone_states:
-                if self.drone_states[d_id] in ['IDLE', 'RESTING'] and not self.drone_payloads.get(d_id):
-                    self.drone_states[d_id] = 'RETURNING_TO_TRUCK'
+                # Drones already on slot stay resting; all others go home first
+                if self.drone_states[d_id] not in ['RESTING_ON_SLOT', 'LANDING_ON_SLOT']:
+                    self.drone_states[d_id] = 'LANDING_ON_SLOT'
         else:
             self.mode = 'manual'
             self.get_logger().info('★ MANUAL MODE activated')
@@ -521,12 +541,6 @@ class TeleopNode(Node):
         for pkg, data in self.packages.items():
             if data['on_truck'] and not data['delivered'] and data['claimed_by'] is None:
                 return pkg
-        return None
-
-    def get_truck_occupant(self):
-        occupying = ['APPROACHING_TRUCK', 'DESCENDING_TO_TRUCK', 'IDLE', 'PICKING_UP', 'CLIMBING_FROM_TRUCK', 'DESCENDING_TO_REST']
-        for d_id, state in self.drone_states.items():
-            if state in occupying: return d_id
         return None
 
     def _draw_route(self, d_id, sx, sy, ex, ey):
@@ -574,21 +588,9 @@ class TeleopNode(Node):
         self._set_pose_auto(d_id, pos[0], pos[1], pos[2])
 
     def auto_tick(self):
-        # 1. Queue Management
-        occupant = self.get_truck_occupant()
-        if occupant is None:
-            waiting = [d for d, st in self.drone_states.items() if st == 'WAITING_FOR_TRUCK' and self.batteries[d] > 20.0]
-            if waiting:
-                waiting.sort(key=lambda d: self.batteries[d])
-                winner = waiting[0]
-                self.drone_states[winner] = 'APPROACHING_TRUCK'
-                self.get_logger().info(f'[COORDINATION] {winner} won truck access (lowest batt: {self.batteries[winner]:.1f}%).')
-
-        # Evaluate ALNS Re-Routing triggers for all drones
-        for d_id, state in self.drone_states.items():
+        # ── ALNS Emergency Re-Routing Check ───────────────────────────────────
+        for d_id, state in list(self.drone_states.items()):
             if self.batteries[d_id] <= 0: continue
-            
-            # Use real telemetry if available (drone1 publishes this), else default to safe values
             tel = self.telemetry_data.get(d_id, {})
             state_vector = {
                 'confidence_Sk': tel.get('confidence_Sk', 0.8),
@@ -597,108 +599,85 @@ class TeleopNode(Node):
                 'bandwidth_bk': 8.0,
                 'drone_id': int(d_id[-1])
             }
-            
             actions = self.engine.evaluate_state_vector(state_vector)
-            
-            # TRIGGER ALNS Destroy and Repair Re-allocation
-            if actions.get('battery_alert') and state not in ['IDLE', 'RESTING', 'WAITING_FOR_TRUCK', 'EMERGENCY_LANDING']:
-                self.get_logger().warn(f"[ALNS EVENT] {d_id} battery critical ({self.batteries[d_id]:.1f}%)! {actions.get('route_action')}")
-                
-                # ALNS Destroy Phase: Remove payload from failing drone
+
+            safe_states = ['RESTING_ON_SLOT', 'LANDING_ON_SLOT', 'EMERGENCY_LANDING']
+            if actions.get('battery_alert') and state not in safe_states:
+                self.get_logger().warn(f"[ALNS EVENT] {d_id} battery critical ({self.batteries[d_id]:.1f}%)! Rerouting orphaned packages.")
                 if self.drone_payloads.get(d_id):
                     failed_pkg = self.drone_payloads[d_id]
                     self.drone_payloads[d_id] = None
-                    
-                    # ALNS Repair Phase: Reallocate task to available swarm pool (greedy)
                     with self._pkg_lock:
                         self.packages[failed_pkg]['claimed_by'] = None
                         self.packages[failed_pkg]['on_truck'] = True
                     sx, sy, sz = self._pkg_slot_pos(self.packages[failed_pkg]['slot'])
                     self._set_entity_pose(failed_pkg, sx, sy, sz)
                     self._del_route(d_id)
-                
-                # Initiate safe emergency landing behavior
                 self.drone_states[d_id] = 'EMERGENCY_LANDING'
 
-        # 2. State Advancements
+        # ── Parallel Slot-Based State Machine ─────────────────────────────────
         for d_id in list(self.drone_states.keys()):
-            if d_id not in self.current_positions or self.batteries[d_id] <= 0: continue
+            if d_id not in self.current_positions or self.batteries[d_id] <= 0:
+                continue
 
             state = self.drone_states[d_id]
             pos   = self.current_positions[d_id]
             has_payload = bool(self.drone_payloads.get(d_id))
 
-            if state == 'RETURNING_TO_TRUCK':
-                tx, ty = self.truck_pos[0], self.truck_pos[1]
-                dx, dy = tx - pos[0], ty - pos[1]
-                if math.sqrt(dx*dx + dy*dy) < 15.0:
-                    self.drone_states[d_id] = 'WAITING_FOR_TRUCK'
-                else:
-                    self._fly_to_target(d_id, tx, ty, self.CRUISE_ALT, 15.0, 'WAITING_FOR_TRUCK', has_payload)
+            # ── LANDING_ON_SLOT: Fly back to own dedicated slot on truck ───────
+            if state == 'LANDING_ON_SLOT':
+                sx, sy, sz = self._drone_slot_pos(d_id)
+                self._fly_to_target(d_id, sx, sy, sz, 0.6, 'RESTING_ON_SLOT', False)
 
-            elif state == 'WAITING_FOR_TRUCK':
-                self._drain(d_id, 0.0, has_payload)
+            # ── RESTING_ON_SLOT: Sit on truck, recharge, look for next package ─
+            elif state == 'RESTING_ON_SLOT':
+                sx, sy, sz = self._drone_slot_pos(d_id)
+                pos[0], pos[1], pos[2] = sx, sy, sz
+                self._set_entity_pose(d_id, sx, sy, sz)
+                self.batteries[d_id] = min(100.0, self.batteries[d_id] + 0.05)  # faster charging on slot
 
-            elif state == 'APPROACHING_TRUCK':
-                tx, ty = self.truck_pos[0], self.truck_pos[1]
-                self._fly_to_target(d_id, tx, ty, self.CRUISE_ALT, 0.5, 'DESCENDING_TO_TRUCK', has_payload)
-
-            elif state == 'DESCENDING_TO_TRUCK':
-                tx, ty, tz = self.truck_pos
-                self._fly_to_target(d_id, tx, ty, tz + self.PICKUP_HOVER, 0.5, 'IDLE', has_payload)
-
-            elif state == 'IDLE':
+                # Claim next available package
                 pkg = self._next_unclaimed()
                 if pkg:
                     with self._pkg_lock:
                         self.packages[pkg]['claimed_by'] = d_id
                     self.drone_payloads[d_id] = pkg
                     self.drone_targets[d_id] = self.packages[pkg]['dest']
-                    self.drone_states[d_id] = 'PICKING_UP'
-                else:
-                    self.drone_states[d_id] = 'DESCENDING_TO_REST'
+                    self.drone_states[d_id] = 'RISING_TO_PICKUP'
+                    self.get_logger().info(f'[SLOT] {d_id} claimed {pkg} → rising to pick up')
 
-            elif state == 'DESCENDING_TO_REST':
-                rest_offsets = {'drone1': (2,1), 'drone2': (2,-1), 'drone3': (-2,1), 'drone4': (-2,-1)}
-                rx, ry = rest_offsets.get(d_id, (0,0))
-                tx, ty, tz = self.truck_pos
-                self._fly_to_target(d_id, tx + rx, ty + ry, tz + 0.6, 0.5, 'RESTING', False)
+            # ── RISING_TO_PICKUP: Lift off 3m above slot to grab package ───────
+            elif state == 'RISING_TO_PICKUP':
+                sx, sy, sz = self._drone_slot_pos(d_id)
+                hover_z = sz + 4.0  # 4m above slot (above truck roof)
+                self._fly_to_target(d_id, sx, sy, hover_z, 0.4, 'PICKING_UP', False)
 
-            elif state == 'RESTING':
-                rest_offsets = {'drone1': (2,1), 'drone2': (2,-1), 'drone3': (-2,1), 'drone4': (-2,-1)}
-                rx, ry = rest_offsets.get(d_id, (0,0))
-                tx, ty, tz = self.truck_pos
-                pos[0] = tx + rx
-                pos[1] = ty + ry
-                pos[2] = tz + 0.6
-                self._set_pose_auto(d_id, pos[0], pos[1], pos[2])
-                self.batteries[d_id] = min(100.0, self.batteries[d_id] + 0.03)
-
+            # ── PICKING_UP: Attach package and draw delivery route ─────────────
             elif state == 'PICKING_UP':
                 pkg = self.drone_payloads[d_id]
-                self.packages[pkg]['on_truck'] = False
-                self._set_entity_pose(pkg, pos[0], pos[1], pos[2] - 0.6)
+                if pkg:
+                    self.packages[pkg]['on_truck'] = False
+                    self._set_entity_pose(pkg, pos[0], pos[1], pos[2] - 0.6)
 
-                dest = self.drone_targets[d_id]
-                self._draw_route(d_id, pos[0], pos[1], dest[0], dest[1])
-                cr, cg, cb = self.packages[pkg]['color']
-                marker_xml = _cylinder_sdf(f'marker_{pkg}', 1.5, 20.0, cr, cg, cb, 0.7)
-                self._spawn(f'marker_{pkg}', marker_xml, dest[0], dest[1], dest[2] + 10.0)
+                    dest = self.drone_targets[d_id]
+                    self._draw_route(d_id, pos[0], pos[1], dest[0], dest[1])
+                    cr, cg, cb = self.packages[pkg]['color']
+                    marker_xml = _cylinder_sdf(f'marker_{pkg}', 1.5, 20.0, cr, cg, cb, 0.7)
+                    self._spawn(f'marker_{pkg}', marker_xml, dest[0], dest[1], dest[2] + 10.0)
+                    self.get_logger().info(f'{d_id}: picked {pkg} → {dest}')
+                self.drone_states[d_id] = 'FLYING_TO_DROP'
 
-                self.get_logger().info(f'{d_id}: picked {pkg} → {dest}')
-                self.drone_states[d_id] = 'CLIMBING_FROM_TRUCK'
-
-            elif state == 'CLIMBING_FROM_TRUCK':
-                self._fly_to_target(d_id, pos[0], pos[1], self.CRUISE_ALT, 0.5, 'FLYING_TO_DROP', has_payload)
-
+            # ── FLYING_TO_DROP: Cruise at altitude toward delivery point ────────
             elif state == 'FLYING_TO_DROP':
                 dest = self.drone_targets[d_id]
                 self._fly_to_target(d_id, dest[0], dest[1], self.CRUISE_ALT, 1.0, 'DESCENDING_TO_DROP', has_payload)
 
+            # ── DESCENDING_TO_DROP: Descend to building/road level ─────────────
             elif state == 'DESCENDING_TO_DROP':
                 dest = self.drone_targets[d_id]
                 self._fly_to_target(d_id, dest[0], dest[1], dest[2] + 2.5, 1.0, 'DROPPING', has_payload)
 
+            # ── DROPPING: Release package and fly home ─────────────────────────
             elif state == 'DROPPING':
                 pkg = self.drone_payloads[d_id]
                 if pkg:
@@ -709,17 +688,17 @@ class TeleopNode(Node):
                     del_req.name = f'marker_{pkg}'
                     self.delete_client.call_async(del_req)
                     self.get_logger().info(f'{d_id}: ✔ delivered {pkg}')
-                self.drone_states[d_id] = 'RETURNING_TO_TRUCK'
-                
+                self.drone_states[d_id] = 'LANDING_ON_SLOT'
+
+            # ── EMERGENCY_LANDING: Critical battery — drop straight down ────────
             elif state == 'EMERGENCY_LANDING':
-                # ALNS trigger forced the drone to abandon mission and land immediately
                 self._drain(d_id, 0.0, has_payload)
                 if pos[2] > 0.5:
                     step = min(0.4, pos[2] - 0.5)
                     pos[2] -= step
                     self._set_pose_auto(d_id, pos[0], pos[1], pos[2])
                 else:
-                    self.batteries[d_id] = 0.0 # Force offline
+                    self.batteries[d_id] = 0.0  # Force offline
 
 
 # ──────────────────────────────────────────────────────────────────────────────
