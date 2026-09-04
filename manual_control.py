@@ -179,10 +179,12 @@ class TeleopNode(Node):
         self.spawn_client  = self.create_client(SpawnEntity,    '/spawn_entity')
         self.delete_client = self.create_client(DeleteEntity,   '/delete_entity')
 
-        self.get_logger().info('Waiting for /set_entity_state …')
-        while not self.set_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('  still waiting…')
-        self.get_logger().info('Services ready.')
+        self.get_logger().info('Waiting for Gazebo services (/set_entity_state, /spawn_entity, /delete_entity)...')
+        while not (self.set_client.wait_for_service(timeout_sec=1.0) and
+                   self.spawn_client.wait_for_service(timeout_sec=1.0) and
+                   self.delete_client.wait_for_service(timeout_sec=1.0)):
+            self.get_logger().info('  still waiting for Gazebo services...')
+        self.get_logger().info('All Gazebo services ready.')
 
         self.truck_pos = list(self.TRUCK_START)
         self.current_positions = {}
@@ -198,6 +200,7 @@ class TeleopNode(Node):
         self.drone_states   = {f'drone{i}': 'LANDING_ON_SLOT' for i in range(1, 5)}
         self.drone_targets  = {f'drone{i}': None   for i in range(1, 5)}
         self.drone_payloads = {f'drone{i}': None   for i in range(1, 5)}
+        self._all_delivered_notified = False
 
         self._pkg_lock = threading.Lock()
         self.box_poses = {}
@@ -298,24 +301,55 @@ class TeleopNode(Node):
             if k != -1: key = k
         return key
 
-    # ── Pose helpers ──────────────────────────────────────────────────────────
+    # ── Pose & Spawn helpers ──────────────────────────────────────────────────
 
-    def _spawn(self, name, xml, x, y, z, qz=0.0, qw=1.0):
+    def _spawn_entity_sync(self, name, xml, x, y, z, qz=0.0, qw=1.0, max_retries=3):
+        """Synchronously delete any old entity and spawn new one with Gazebo confirmation."""
+        # 1. Delete old entity if exists
         del_req = DeleteEntity.Request()
         del_req.name = name
-        self.delete_client.call_async(del_req)
-        time.sleep(0.06)
+        del_future = self.delete_client.call_async(del_req)
+        t0 = time.time()
+        while not del_future.done() and (time.time() - t0) < 0.4:
+            time.sleep(0.01)
 
-        req = SpawnEntity.Request()
-        req.name = name
-        req.xml  = xml
-        req.initial_pose.position.x    = float(x)
-        req.initial_pose.position.y    = float(y)
-        req.initial_pose.position.z    = float(z)
-        req.initial_pose.orientation.z = float(qz)
-        req.initial_pose.orientation.w = float(qw)
-        req.reference_frame = 'world'
-        self.spawn_client.call_async(req)
+        time.sleep(0.02)
+
+        # 2. Spawn entity with retries and response check
+        for attempt in range(max_retries):
+            req = SpawnEntity.Request()
+            req.name = name
+            req.xml  = xml
+            req.initial_pose.position.x    = float(x)
+            req.initial_pose.position.y    = float(y)
+            req.initial_pose.position.z    = float(z)
+            req.initial_pose.orientation.z = float(qz)
+            req.initial_pose.orientation.w = float(qw)
+            req.reference_frame = 'world'
+
+            spawn_future = self.spawn_client.call_async(req)
+            t0 = time.time()
+            while not spawn_future.done() and (time.time() - t0) < 2.0:
+                time.sleep(0.02)
+
+            if spawn_future.done():
+                res = spawn_future.result()
+                if res and res.success:
+                    self.get_logger().info(f'  ✔ Spawned {name} at ({x:.1f}, {y:.1f}, {z:.1f})')
+                    return True
+                else:
+                    msg = res.status_message if res else 'No response'
+                    self.get_logger().warn(f'  [Attempt {attempt+1}] Spawn {name} failed: {msg}')
+            else:
+                self.get_logger().warn(f'  [Attempt {attempt+1}] Spawn {name} timed out')
+
+            time.sleep(0.05)
+
+        self.get_logger().error(f'❌ Failed to spawn {name} after {max_retries} attempts')
+        return False
+
+    def _spawn(self, name, xml, x, y, z, qz=0.0, qw=1.0):
+        return self._spawn_entity_sync(name, xml, x, y, z, qz, qw)
 
     def _set_entity_pose(self, name, x, y, z):
         req = SetEntityState.Request()
@@ -332,7 +366,7 @@ class TeleopNode(Node):
             self._set_entity_pose(self.drone_name, x, y, z)
             if self.holding:
                 data = self.packages.get(self.holding, {})
-                if not data.get('delivered'):
+                if not data.get('delivered') and data.get('spawned', True):
                     self._set_entity_pose(self.holding, x, y, z - 0.6)
 
     def _set_pose_auto(self, d_id, x, y, z):
@@ -340,8 +374,8 @@ class TeleopNode(Node):
         payload = self.drone_payloads.get(d_id)
         if payload:
             data = self.packages.get(payload, {})
-            # Only move the package if it exists in our registry, is not delivered, and is not on truck
-            if data and not data.get('delivered') and not data.get('on_truck'):
+            # Only move the package if it exists, is confirmed spawned, is not delivered, and is off truck
+            if data and not data.get('delivered') and not data.get('on_truck') and data.get('spawned', True):
                 self._set_entity_pose(payload, x, y, z - 0.6)
 
     def _drain(self, d_id, dist, has_payload=False):
@@ -376,7 +410,7 @@ class TeleopNode(Node):
     def update_held_object(self):
         if self.holding and self.drone_name in self.current_positions:
             data = self.packages.get(self.holding, {})
-            if not data.get('delivered'):
+            if not data.get('delivered') and data.get('spawned', True):
                 pos = self.current_positions[self.drone_name]
                 self._set_entity_pose(self.holding, pos[0], pos[1], pos[2] - 0.6)
 
@@ -389,7 +423,7 @@ class TeleopNode(Node):
         self._set_entity_pose('delivery_truck', tx, ty, tz)
 
         for pkg, data in self.packages.items():
-            if data.get('on_truck') and not data.get('delivered'):
+            if data.get('on_truck') and not data.get('delivered') and data.get('spawned', True):
                 sx, sy, sz = self._pkg_slot_pos(data['slot'])
                 self._set_entity_pose(pkg, sx, sy, sz)
 
@@ -401,22 +435,35 @@ class TeleopNode(Node):
                 self._set_entity_pose(d_id, sx, sy, sz)
 
     def _pkg_slot_pos(self, slot):
+        """
+        15 packages arranged in 5 stacks of 3 packages each along the truck center bed.
+        slot 0..4:   tier 2 (top of stacks 0..4)  -> picked first (pkg 1-5)
+        slot 5..9:   tier 1 (mid of stacks 0..4)  -> picked second (pkg 6-10)
+        slot 10..14: tier 0 (base of stacks 0..4) -> picked third (pkg 11-15)
+        """
         tx, ty, tz = self.truck_pos
-        col = slot % 3
-        row = slot // 3
-        sx = tx - 2.5 + col * 1.2
-        sy = ty - 1.2 + row * 0.6
-        sz = tz + 1.8
+        stack_idx = slot % 5
+        tier = 2 - (slot // 5)  # 2=top, 1=mid, 0=base
+
+        # 5 stacks along the center line of the truck bed
+        stack_x = [-2.2, -1.2, -0.2, 0.8, 1.8]
+        sx = tx + stack_x[stack_idx]
+        sy = ty  # central aisle between the drone landing pads
+
+        # Z tiers: truck bed is at tz + 1.25. Box height is 0.45.
+        tier_z = [1.48, 1.93, 2.38]
+        sz = tz + tier_z[tier]
+
         return sx, sy, sz
 
     def _drone_slot_pos(self, d_id):
         """Fixed landing pad positions on the truck roof for each drone."""
         tx, ty, tz = self.truck_pos
         offsets = {
-            'drone1': (-2.5,  1.0),
-            'drone2': (-2.5, -1.0),
-            'drone3': ( 0.5,  1.0),
-            'drone4': ( 0.5, -1.0),
+            'drone1': (-2.5,  1.05),
+            'drone2': (-2.5, -1.05),
+            'drone3': ( 0.5,  1.05),
+            'drone4': ( 0.5, -1.05),
         }
         ox, oy = offsets.get(d_id, (0, 0))
         return tx + ox, ty + oy, tz + 2.8  # sits on top of truck body
@@ -424,7 +471,7 @@ class TeleopNode(Node):
     # ── Mission setup ─────────────────────────────────────────────────────────
 
     def setup_mission(self):
-        self.get_logger().info('Setting up mission...')
+        self.get_logger().info('Setting up mission: spawning truck + 15 stacked packages...')
 
         truck_xml = (
             '<?xml version="1.0"?><sdf version="1.6">'
@@ -437,22 +484,27 @@ class TeleopNode(Node):
             '<material><ambient>0.85 0.35 0.0 1</ambient><diffuse>0.85 0.35 0.0 1</diffuse></material></visual>'
             '<visual name="ws"><pose>4.7 0 2.1 0.35 0 0</pose><geometry><box><size>0.1 2.8 1.3</size></box></geometry>'
             '<material><ambient>0.5 0.8 1.0 0.6</ambient><diffuse>0.5 0.8 1.0 0.6</diffuse></material></visual>'
+            '<!-- Visual Landing Pads for 4 Drones -->'
+            '<visual name="pad_d1"><pose>-2.5 1.05 1.26 0 0 0</pose><geometry><cylinder><radius>0.45</radius><length>0.02</length></cylinder></geometry><material><ambient>0.15 0.15 0.15 1</ambient><diffuse>0.15 0.15 0.15 1</diffuse></material></visual>'
+            '<visual name="pad_d2"><pose>-2.5 -1.05 1.26 0 0 0</pose><geometry><cylinder><radius>0.45</radius><length>0.02</length></cylinder></geometry><material><ambient>0.15 0.15 0.15 1</ambient><diffuse>0.15 0.15 0.15 1</diffuse></material></visual>'
+            '<visual name="pad_d3"><pose>0.5 1.05 1.26 0 0 0</pose><geometry><cylinder><radius>0.45</radius><length>0.02</length></cylinder></geometry><material><ambient>0.15 0.15 0.15 1</ambient><diffuse>0.15 0.15 0.15 1</diffuse></material></visual>'
+            '<visual name="pad_d4"><pose>0.5 -1.05 1.26 0 0 0</pose><geometry><cylinder><radius>0.45</radius><length>0.02</length></cylinder></geometry><material><ambient>0.15 0.15 0.15 1</ambient><diffuse>0.15 0.15 0.15 1</diffuse></material></visual>'
+            '<!-- Cargo Deck Runner for 5 Stacks -->'
+            '<visual name="cargo_deck"><pose>-0.2 0 1.26 0 0 0</pose><geometry><box><size>5.0 1.0 0.02</size></box></geometry><material><ambient>0.25 0.15 0.08 1</ambient><diffuse>0.25 0.15 0.08 1</diffuse></material></visual>'
             '</link></model></sdf>'
         )
-        self._spawn('delivery_truck', truck_xml, self.truck_pos[0], self.truck_pos[1], self.truck_pos[2])
-        time.sleep(0.4)
+        self._spawn_entity_sync('delivery_truck', truck_xml, self.truck_pos[0], self.truck_pos[1], self.truck_pos[2])
 
         self.packages = {}
-        random.seed(None)
+        random.seed(42)
 
+        # 1. Initialize all 15 package dictionaries in top-down order (1..15)
+        # So _next_unclaimed picks top packages first, then middle, then base!
         for i in range(1, 16):
             pkg_name = f'package_{i}'
-            dest  = random.choice(self.DESTINATIONS)
+            dest  = self.DESTINATIONS[(i - 1) % len(self.DESTINATIONS)]
             slot  = i - 1
             color = PKG_COLORS[(i - 1) % len(PKG_COLORS)]
-            r, g, b = color
-
-            sx, sy, sz = self._pkg_slot_pos(slot)
 
             self.packages[pkg_name] = {
                 'dest':       dest,
@@ -461,14 +513,27 @@ class TeleopNode(Node):
                 'on_truck':   True,
                 'claimed_by': None,
                 'delivered':  False,
+                'spawned':    False,
             }
 
-            # static=False, collision removed -> smooth cinematic movement with SetEntityState!
-            pkg_xml = _box_sdf(pkg_name, 0.85, 0.85, 0.85, r, g, b, 1.0, static=False, gravity=False)
-            self._spawn(pkg_name, pkg_xml, sx, sy, sz)
-            time.sleep(0.04)
+        # 2. Spawn entities from bottom tier to top tier so they physically stack cleanly
+        # Tier 0 (base): packages 15..11
+        # Tier 1 (mid):  packages 10..6
+        # Tier 2 (top):  packages 5..1
+        spawn_order = list(range(15, 0, -1))
+        for i in spawn_order:
+            pkg_name = f'package_{i}'
+            slot = self.packages[pkg_name]['slot']
+            r, g, b = self.packages[pkg_name]['color']
+            sx, sy, sz = self._pkg_slot_pos(slot)
 
-        self.get_logger().info('Mission ready: truck + 15 packages spawned.')
+            pkg_xml = _box_sdf(pkg_name, 0.70, 0.70, 0.45, r, g, b, 1.0, static=False, gravity=False)
+            ok = self._spawn_entity_sync(pkg_name, pkg_xml, sx, sy, sz)
+            self.packages[pkg_name]['spawned'] = ok
+            time.sleep(0.03)
+
+        num_spawned = sum(1 for p in self.packages.values() if p['spawned'])
+        self.get_logger().info(f'Mission ready: truck + {num_spawned}/15 stacked packages successfully spawned.')
 
     # ── Manual pick / drop ────────────────────────────────────────────────────
 
@@ -651,6 +716,11 @@ class TeleopNode(Node):
                     self.drone_targets[d_id] = self.packages[claimed_pkg]['dest']
                     self.drone_states[d_id] = 'RISING_TO_PICKUP'
                     self.get_logger().info(f'[SLOT] {d_id} claimed {claimed_pkg} → rising to pick up')
+                else:
+                    if not self._all_delivered_notified and self.packages:
+                        if all(p.get('delivered') for p in self.packages.values()):
+                            self._all_delivered_notified = True
+                            self.get_logger().info('★ ALL 15 PACKAGES DELIVERED! All drones secured and resting on truck slots.')
 
             # ── RISING_TO_PICKUP: Lift off above slot to grab package ──────────
             elif state == 'RISING_TO_PICKUP':
