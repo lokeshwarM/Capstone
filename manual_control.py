@@ -244,14 +244,15 @@ class TeleopNode(Node):
     def _init_log_files(self):
         """Initializes structured persistent log files for Trajectories, GPS, and D2D Communication."""
         os.makedirs('logs', exist_ok=True)
+        now_str = time.strftime("%Y-%m-%d %H:%M:%S")
         
-        # 1. Flight paths CSV
+        # 1. Flight paths CSV (header + continuous timestamped rows)
         csv_path = 'logs/drone_flight_paths.csv'
         if not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0:
             with open(csv_path, 'w', encoding='utf-8') as f:
                 f.write('timestamp,drone_id,state,x,y,z,lat,lon,alt_m,battery_pct,payload\n')
                 
-        # 2. Text trajectories log
+        # 2. Text trajectories log (appends with clear session header for each run)
         txt_path = 'logs/drone_trajectories.txt'
         if not os.path.exists(txt_path) or os.path.getsize(txt_path) == 0:
             with open(txt_path, 'w', encoding='utf-8') as f:
@@ -259,8 +260,11 @@ class TeleopNode(Node):
                 f.write("  UAV SWARM TRAJECTORY & GPS REAL-TIME LOG\n")
                 f.write(f"  Reference Origin: LAT={LAT_REF}N, LON={LON_REF}E, ALT={ALT_REF}m\n")
                 f.write("=" * 80 + "\n\n")
+        else:
+            with open(txt_path, 'a', encoding='utf-8') as f:
+                f.write(f"\n{'='*80}\n  >>> NEW SIMULATION SESSION: {now_str} <<<\n{'='*80}\n\n")
 
-        # 3. D2D communication log
+        # 3. D2D communication log (appends with clear session header for each run)
         d2d_path = 'logs/d2d_communication_log.txt'
         if not os.path.exists(d2d_path) or os.path.getsize(d2d_path) == 0:
             with open(d2d_path, 'w', encoding='utf-8') as f:
@@ -268,6 +272,9 @@ class TeleopNode(Node):
                 f.write("  DRONE-TO-DRONE (D2D) INTER-UAV COMMUNICATION & TELEMETRY EXCHANGE LOG\n")
                 f.write("  Protocol: 802.11s Swarm Mesh | Semantic Compression: Enabled\n")
                 f.write("=" * 90 + "\n\n")
+        else:
+            with open(d2d_path, 'a', encoding='utf-8') as f:
+                f.write(f"\n{'='*90}\n  >>> NEW SIMULATION SESSION: {now_str} <<<\n{'='*90}\n\n")
 
     def _log_drone_telemetry(self):
         """Streams real-time drone cartesian (X,Y,Z) and simulated GPS coordinates to CSV."""
