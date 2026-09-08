@@ -1,0 +1,12 @@
+================================================================================
+  UAV SWARM TRAJECTORY & GPS REAL-TIME LOG
+  Reference Origin: LAT=16.4971N, LON=80.5005E, ALT=18.0m
+================================================================================
+
+[2026-09-09 02:02:13.000] [SWARM] [SYSTEM_INIT] Base Origin: LAT=16.4971N, LON=80.5005E, ALT=18.0m | 4 Drones Secured on Truck Deck
+[2026-09-09 02:02:13.050] [SWARM] [ACO_INITIALIZED] Swarm route optimization computed for 15 packages
+[2026-09-09 02:02:13.100] [WAYPOINT_SURVEY] Mothership Truck         Local=(   0.0,  -37.5,   1.5) | GPS=(16.496762N, 80.500500E, Alt= 19.5m)
+[2026-09-09 02:02:13.100] [WAYPOINT_SURVEY] Building 1 Rooftop       Local=( -45.0,  -45.0,  10.8) | GPS=(16.496695N, 80.500077E, Alt= 28.8m)
+[2026-09-09 02:02:13.100] [WAYPOINT_SURVEY] Building 5 Rooftop       Local=(   0.0,  -15.0,  38.4) | GPS=(16.496965N, 80.500500E, Alt= 56.4m)
+[2026-09-09 02:02:13.100] [WAYPOINT_SURVEY] Building 8 Rooftop       Local=(  30.0,  -45.0,  35.1) | GPS=(16.496695N, 80.500782E, Alt= 53.1m)
+[2026-09-09 02:02:13.100] [WAYPOINT_SURVEY] Cruise Altitude Waypoint Local=(  15.0,  -15.0,  50.0) | GPS=(16.496965N, 80.500641E, Alt= 68.0m)

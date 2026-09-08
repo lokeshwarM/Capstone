@@ -116,11 +116,75 @@ class ACOSolver:
                     pheromones[n][p] *= (1.0 - self.evaporation_rate)
                     
             # Deposit pheromones (elitist - only best solution deposits)
-            deposit_amount = 100.0 / best_cost
-            for d_id, route in best_solution.items():
-                last_node = d_id
-                for pkg in route:
-                    pheromones[last_node][pkg] += deposit_amount
-                    last_node = pkg
+            if best_solution and best_cost > 0:
+                deposit_amount = 100.0 / best_cost
+                for d_id, route in best_solution.items():
+                    last_node = d_id
+                    for pkg in route:
+                        pheromones[last_node][pkg] += deposit_amount
+                        last_node = pkg
                     
-        return best_solution
+        # Compute total swarm distance
+        total_swarm_dist = 0.0
+        if best_solution:
+            for d_id, route in best_solution.items():
+                curr_pos = drones[d_id]
+                for pkg in route:
+                    p_start = packages[pkg]['start']
+                    p_dest = packages[pkg]['dest']
+                    total_swarm_dist += self.distance(curr_pos, p_start) + self.distance(p_start, p_dest)
+                    curr_pos = p_dest
+
+        return best_solution, best_cost, total_swarm_dist
+
+    def export_route_report(self, best_solution, drones, packages, filepath="logs/aco_optimal_routes.txt"):
+        """Exports a human-readable and verifiable ACO optimal route report."""
+        import os
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write("=" * 70 + "\n")
+            f.write("  ANT COLONY OPTIMIZATION (ACO) - MULTI-UAV OPTIMAL ROUTE REPORT\n")
+            f.write("  Autonomous Swarm Delivery System | Capstone Review Verification\n")
+            f.write("=" * 70 + "\n\n")
+            f.write(f"Algorithm Parameters:\n")
+            f.write(f"  • Number of Ants       : {self.num_ants}\n")
+            f.write(f"  • ACO Iterations       : {self.num_iterations}\n")
+            f.write(f"  • Pheromone Factor (α) : {self.alpha}\n")
+            f.write(f"  • Heuristic Factor (β) : {self.beta}\n")
+            f.write(f"  • Evaporation Rate (ρ) : {self.evaporation_rate}\n\n")
+            f.write("-" * 70 + "\n")
+            f.write("OPTIMAL TASK ASSIGNMENTS & TRAJECTORY PATHS:\n")
+            f.write("-" * 70 + "\n")
+
+            total_dist = 0.0
+            drone_distances = {}
+
+            for d_id, route in best_solution.items():
+                f.write(f"\n[{d_id.upper()}] Assigned Packages: {len(route)} packages\n")
+                curr_pos = drones[d_id]
+                d_dist = 0.0
+                f.write(f"  Start Depot / Pad: ({curr_pos[0]:.1f}, {curr_pos[1]:.1f}, {curr_pos[2]:.1f})\n")
+                
+                for step, pkg in enumerate(route, start=1):
+                    p_start = packages[pkg]['start']
+                    p_dest = packages[pkg]['dest']
+                    leg1 = self.distance(curr_pos, p_start)
+                    leg2 = self.distance(p_start, p_dest)
+                    d_dist += leg1 + leg2
+                    f.write(f"    Step {step}: Pickup {pkg} at ({p_start[0]:.1f}, {p_start[1]:.1f}, {p_start[2]:.1f}) "
+                            f"--> Deliver to Dest ({p_dest[0]:.1f}, {p_dest[1]:.1f}, {p_dest[2]:.1f}) "
+                            f"[Leg: {leg1 + leg2:.1f}m]\n")
+                    curr_pos = p_dest
+                    
+                drone_distances[d_id] = d_dist
+                total_dist += d_dist
+                f.write(f"  Total Flight Distance for {d_id}: {d_dist:.2f} meters\n")
+
+            f.write("\n" + "=" * 70 + "\n")
+            f.write("GLOBAL OPTIMIZATION METRICS:\n")
+            f.write(f"  • Total Swarm Flight Distance : {total_dist:.2f} meters\n")
+            makespan = max(drone_distances.values()) if drone_distances else 0.0
+            f.write(f"  • Optimal Makespan (Max Drone): {makespan:.2f} meters\n")
+            f.write(f"  • Average Load Per Drone      : {total_dist / max(1, len(drones)):.2f} meters\n")
+            f.write("=" * 70 + "\n")
