@@ -684,6 +684,7 @@ class TeleopNode(Node):
         cr, cg, cb = self.packages[self.holding]['color']
         marker_xml = _cylinder_sdf(f'marker_{self.holding}', 1.5, 20.0, cr, cg, cb, 0.6)
         self._spawn(f'marker_{self.holding}', marker_xml, dest[0], dest[1], dest[2] + 10.0)
+        self._log_waypoint_event(self.drone_name, 'MANUAL_PICK_PACKAGE', f"Holding {self.holding}, Dest: {dest}")
 
     def drop_object(self):
         if not self.holding or self.drone_name not in self.current_positions: return
@@ -701,12 +702,14 @@ class TeleopNode(Node):
         if math.sqrt((pos[0]-dest[0])**2 + (pos[1]-dest[1])**2) < 5.0:
             self.packages[pkg]['delivered']  = True
             self.packages[pkg]['claimed_by'] = None
+            self._log_waypoint_event(self.drone_name, 'MANUAL_DELIVERY_SUCCESS', f"Delivered {pkg} at {dest}")
         else:
             with self._pkg_lock:
                 self.packages[pkg]['on_truck']   = True
                 self.packages[pkg]['claimed_by'] = None
             sx, sy, sz = self._pkg_slot_pos(self.packages[pkg]['slot'])
             self._set_entity_pose(pkg, sx, sy, sz)
+            self._log_waypoint_event(self.drone_name, 'MANUAL_DROP_ABORT', f"Dropped {pkg} outside delivery zone; returned to slot {self.packages[pkg]['slot']}")
 
     # ── Auto mode & Queuing ───────────────────────────────────────────────────
 
@@ -987,6 +990,7 @@ def main():
         while True:
             time.sleep(0.015)
             teleop.update_held_object()
+            teleop._log_drone_telemetry()
 
             if teleop.mode == 'auto':
                 teleop.auto_tick()
