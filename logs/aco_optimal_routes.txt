@@ -14,40 +14,40 @@ Algorithm Parameters:
 OPTIMAL TASK ASSIGNMENTS & TRAJECTORY PATHS:
 ----------------------------------------------------------------------
 
-[DRONE1] Assigned Packages: 4 packages
+[DRONE1] Assigned Packages: 3 packages
   Start Depot / Pad: (-2.5, -36.5, 4.3)
-    Step 1: Pickup package_7 at (0.0, -37.5, 2.5) --> Deliver to Dest (15.0, -15.0, 30.2) [Leg: 42.0m]
-    Step 2: Pickup package_15 at (0.0, -37.5, 2.5) --> Deliver to Dest (15.0, -15.0, 30.2) [Leg: 77.4m]
-    Step 3: Pickup package_10 at (0.0, -37.5, 2.5) --> Deliver to Dest (-45.0, -15.0, 27.7) [Leg: 95.0m]
-    Step 4: Pickup package_14 at (0.0, -37.5, 2.5) --> Deliver to Dest (0.0, 15.0, 19.4) [Leg: 111.4m]
-  Total Flight Distance for drone1: 325.79 meters
+    Step 1: Pickup package_2 at (0.0, -37.5, 2.5) --> Deliver to Dest (-45.0, -15.0, 27.7) [Leg: 59.5m]
+    Step 2: Pickup package_3 at (0.0, -37.5, 2.5) --> Deliver to Dest (-30.0, 30.0, 27.5) [Leg: 134.3m]
+    Step 3: Pickup package_10 at (0.0, -37.5, 2.5) --> Deliver to Dest (-45.0, -15.0, 27.7) [Leg: 134.3m]
+  Total Flight Distance for drone1: 328.03 meters
 
 [DRONE2] Assigned Packages: 4 packages
   Start Depot / Pad: (-2.5, -38.5, 4.3)
-    Step 1: Pickup package_5 at (0.0, -37.5, 2.5) --> Deliver to Dest (0.0, -15.0, 38.4) [Leg: 45.6m]
-    Step 2: Pickup package_1 at (0.0, -37.5, 2.5) --> Deliver to Dest (-45.0, -45.0, 10.8) [Leg: 88.7m]
-    Step 3: Pickup package_8 at (0.0, -37.5, 2.5) --> Deliver to Dest (30.0, -45.0, 35.1) [Leg: 91.3m]
-    Step 4: Pickup package_6 at (0.0, -37.5, 2.5) --> Deliver to Dest (0.0, 15.0, 19.4) [Leg: 100.1m]
-  Total Flight Distance for drone2: 325.75 meters
+    Step 1: Pickup package_12 at (0.0, -37.5, 2.5) --> Deliver to Dest (-15.0, 0.0, 10.3) [Leg: 44.4m]
+    Step 2: Pickup package_15 at (0.0, -37.5, 2.5) --> Deliver to Dest (15.0, -15.0, 30.2) [Leg: 79.8m]
+    Step 3: Pickup package_8 at (0.0, -37.5, 2.5) --> Deliver to Dest (30.0, -45.0, 35.1) [Leg: 83.6m]
+    Step 4: Pickup package_11 at (0.0, -37.5, 2.5) --> Deliver to Dest (-30.0, 30.0, 27.5) [Leg: 122.9m]
+  Total Flight Distance for drone2: 330.80 meters
 
 [DRONE3] Assigned Packages: 4 packages
   Start Depot / Pad: (0.5, -36.5, 4.3)
-    Step 1: Pickup package_4 at (0.0, -37.5, 2.5) --> Deliver to Dest (-15.0, 0.0, 10.3) [Leg: 43.3m]
-    Step 2: Pickup package_2 at (0.0, -37.5, 2.5) --> Deliver to Dest (-45.0, -15.0, 27.7) [Leg: 97.4m]
-    Step 3: Pickup package_12 at (0.0, -37.5, 2.5) --> Deliver to Dest (-15.0, 0.0, 10.3) [Leg: 97.4m]
-    Step 4: Pickup package_9 at (0.0, -37.5, 2.5) --> Deliver to Dest (-45.0, -45.0, 10.8) [Leg: 87.5m]
-  Total Flight Distance for drone3: 325.59 meters
+    Step 1: Pickup package_5 at (0.0, -37.5, 2.5) --> Deliver to Dest (0.0, -15.0, 38.4) [Leg: 44.5m]
+    Step 2: Pickup package_9 at (0.0, -37.5, 2.5) --> Deliver to Dest (-45.0, -45.0, 10.8) [Leg: 88.7m]
+    Step 3: Pickup package_4 at (0.0, -37.5, 2.5) --> Deliver to Dest (-15.0, 0.0, 10.3) [Leg: 87.5m]
+    Step 4: Pickup package_6 at (0.0, -37.5, 2.5) --> Deliver to Dest (0.0, 15.0, 19.4) [Leg: 96.3m]
+  Total Flight Distance for drone3: 317.04 meters
 
-[DRONE4] Assigned Packages: 3 packages
+[DRONE4] Assigned Packages: 4 packages
   Start Depot / Pad: (0.5, -38.5, 4.3)
-    Step 1: Pickup package_13 at (0.0, -37.5, 2.5) --> Deliver to Dest (0.0, -15.0, 38.4) [Leg: 44.5m]
-    Step 2: Pickup package_11 at (0.0, -37.5, 2.5) --> Deliver to Dest (-30.0, 30.0, 27.5) [Leg: 120.4m]
-    Step 3: Pickup package_3 at (0.0, -37.5, 2.5) --> Deliver to Dest (-30.0, 30.0, 27.5) [Leg: 156.0m]
-  Total Flight Distance for drone4: 320.83 meters
+    Step 1: Pickup package_7 at (0.0, -37.5, 2.5) --> Deliver to Dest (15.0, -15.0, 30.2) [Leg: 40.9m]
+    Step 2: Pickup package_14 at (0.0, -37.5, 2.5) --> Deliver to Dest (0.0, 15.0, 19.4) [Leg: 93.9m]
+    Step 3: Pickup package_13 at (0.0, -37.5, 2.5) --> Deliver to Dest (0.0, -15.0, 38.4) [Leg: 97.5m]
+    Step 4: Pickup package_1 at (0.0, -37.5, 2.5) --> Deliver to Dest (-45.0, -45.0, 10.8) [Leg: 88.7m]
+  Total Flight Distance for drone4: 320.98 meters
 
 ======================================================================
 GLOBAL OPTIMIZATION METRICS:
-  • Total Swarm Flight Distance : 1297.96 meters
-  • Optimal Makespan (Max Drone): 325.79 meters
-  • Average Load Per Drone      : 324.49 meters
+  • Total Swarm Flight Distance : 1296.84 meters
+  • Optimal Makespan (Max Drone): 330.80 meters
+  • Average Load Per Drone      : 324.21 meters
 ======================================================================

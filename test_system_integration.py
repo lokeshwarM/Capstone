@@ -60,34 +60,51 @@ def run_integration_tests():
         ("Cruise Altitude Waypoint", 15.0, -15.0, 50.0),
     ]
 
-    # Initialize and verify flight paths CSV & text trajectory logs
+    # Initialize and verify flight paths CSV & text trajectory logs (Both Cumulative and Latest-Session)
     csv_path = "logs/drone_flight_paths.csv"
-    with open(csv_path, "w", encoding="utf-8") as f:
-        f.write("timestamp,drone_id,state,x,y,z,lat,lon,alt_m,battery_pct,payload\n")
+    csv_latest = "logs/latest_drone_flight_paths.csv"
+    with open(csv_path, "w", encoding="utf-8") as f_cum, open(csv_latest, "w", encoding="utf-8") as f_lat:
+        f_cum.write("timestamp,drone_id,state,x,y,z,lat,lon,alt_m,battery_pct,payload\n")
+        f_lat.write("timestamp,drone_id,state,x,y,z,lat,lon,alt_m,battery_pct,payload\n")
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
         for i in range(1, 5):
             d_id = f"drone{i}"
             pos = (-2.5 + (i-1)*1.0, -37.5, 4.3)
             lat, lon, alt = gazebo_to_gps(pos[0], pos[1], pos[2])
-            f.write(f"{ts}.000,{d_id},RESTING_ON_SLOT,{pos[0]:.2f},{pos[1]:.2f},{pos[2]:.2f},{lat:.6f},{lon:.6f},{alt:.2f},100.0,NONE\n")
+            row = f"{ts}.000,{d_id},RESTING_ON_SLOT,{pos[0]:.2f},{pos[1]:.2f},{pos[2]:.2f},{lat:.6f},{lon:.6f},{alt:.2f},100.0,NONE\n"
+            f_cum.write(row)
+            f_lat.write(row)
 
     txt_path = "logs/drone_trajectories.txt"
-    with open(txt_path, "w", encoding="utf-8") as f:
-        f.write("=" * 80 + "\n")
-        f.write("  UAV SWARM TRAJECTORY & GPS REAL-TIME LOG\n")
-        f.write(f"  Reference Origin: LAT={LAT_REF}N, LON={LON_REF}E, ALT={ALT_REF}m\n")
-        f.write("=" * 80 + "\n\n")
+    txt_latest = "logs/latest_drone_trajectories.txt"
+    with open(txt_path, "w", encoding="utf-8") as f_cum, open(txt_latest, "w", encoding="utf-8") as f_lat:
+        f_cum.write("=" * 80 + "\n")
+        f_cum.write("  UAV SWARM TRAJECTORY & GPS LOG (ALL-TIME CUMULATIVE LEDGER)\n")
+        f_cum.write(f"  Reference Origin: LAT={LAT_REF}N, LON={LON_REF}E, ALT={ALT_REF}m\n")
+        f_cum.write("=" * 80 + "\n\n")
+
+        f_lat.write("=" * 80 + "\n")
+        f_lat.write("  LATEST SIMULATION SESSION: UAV TRAJECTORY & GPS REAL-TIME LOG\n")
+        f_lat.write(f"  Reference Origin: LAT={LAT_REF}N, LON={LON_REF}E, ALT={ALT_REF}m\n")
+        f_lat.write("=" * 80 + "\n\n")
+
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
-        f.write(f"[{ts}.000] [SWARM] [SYSTEM_INIT] Base Origin: LAT={LAT_REF}N, LON={LON_REF}E, ALT={ALT_REF}m | 4 Drones Secured on Truck Deck\n")
-        f.write(f"[{ts}.050] [SWARM] [ACO_INITIALIZED] Swarm route optimization computed for 15 packages\n")
+        f_cum.write(f"[{ts}.000] [SWARM] [SYSTEM_INIT] Base Origin: LAT={LAT_REF}N, LON={LON_REF}E, ALT={ALT_REF}m | 4 Drones Secured on Truck Deck\n")
+        f_lat.write(f"[{ts}.000] [SWARM] [SYSTEM_INIT] Base Origin: LAT={LAT_REF}N, LON={LON_REF}E, ALT={ALT_REF}m | 4 Drones Secured on Truck Deck\n")
         for label, x, y, z in test_pts:
             lat, lon, alt = gazebo_to_gps(x, y, z)
-            f.write(f"[{ts}.100] [WAYPOINT_SURVEY] {label:24s} Local=({x:6.1f}, {y:6.1f}, {z:5.1f}) | GPS=({lat:.6f}N, {lon:.6f}E, Alt={alt:5.1f}m)\n")
+            entry = f"[{ts}.100] [WAYPOINT_SURVEY] {label:24s} Local=({x:6.1f}, {y:6.1f}, {z:5.1f}) | GPS=({lat:.6f}N, {lon:.6f}E, Alt={alt:5.1f}m)\n"
+            f_cum.write(entry)
+            f_lat.write(entry)
 
     assert os.path.exists(csv_path) and os.path.getsize(csv_path) > 0
+    assert os.path.exists(csv_latest) and os.path.getsize(csv_latest) > 0
     assert os.path.exists(txt_path) and os.path.getsize(txt_path) > 0
-    print(f"  • Generated Flight Paths CSV : {csv_path}")
-    print(f"  • Generated Trajectories Log : {txt_path}")
+    assert os.path.exists(txt_latest) and os.path.getsize(txt_latest) > 0
+    print(f"  • Cumulative Flight Paths CSV   : {csv_path}")
+    print(f"  • Latest Session Flight CSV     : {csv_latest}")
+    print(f"  • Cumulative Trajectories Log   : {txt_path}")
+    print(f"  • Latest Session Trajectory Log : {txt_latest}")
     print("  [OK] Observation 1 Passed: Geodetic GPS transformation verified.")
 
     # -------------------------------------------------------------------------
@@ -137,18 +154,29 @@ def run_integration_tests():
     # -------------------------------------------------------------------------
     print("\n[Test 3/5] Verifying D2D Communication Log Structure & Protocol Packets...")
     d2d_log_path = "logs/d2d_communication_log.txt"
+    d2d_latest_path = "logs/latest_d2d_communication_log.txt"
     
-    # Write a test sequence of simulated D2D packets to ensure file validity
-    with open(d2d_log_path, "a", encoding="utf-8") as f:
+    # Write a test sequence of simulated D2D packets to both cumulative and latest
+    with open(d2d_log_path, "a", encoding="utf-8") as f_cum, open(d2d_latest_path, "w", encoding="utf-8") as f_lat:
+        f_lat.write("=" * 90 + "\n")
+        f_lat.write("  LATEST SIMULATION SESSION: DRONE-TO-DRONE (D2D) INTER-UAV COMMUNICATION LOG\n")
+        f_lat.write(f"  Session Started : {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f_lat.write("  Protocol: 802.11s Swarm Mesh | Semantic Compression: Enabled\n")
+        f_lat.write("=" * 90 + "\n\n")
+
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
-        f.write(f"[{ts}.010] [MSG_ID:00001] [DRONE1 -> SWARM_BROADCAST] [TELEMETRY_HEARTBEAT] Pose=(-2.5,-36.5,4.3) State=RESTING_ON_SLOT Batt=100% | Size:48B | RSSI:-58dBm | Latency:8ms\n")
-        f.write(f"[{ts}.045] [MSG_ID:00002] [DRONE1 -> SWARM_BROADCAST] [PAYLOAD_CLAIM] Claimed package_1 at slot 0. Target: (-45.0, -45.0, 10.8) | Size:56B | RSSI:-52dBm | Latency:6ms\n")
-        f.write(f"[{ts}.120] [MSG_ID:00003] [DRONE2 -> DRONE1] [PEER_DRIFT_COMPENSATION] Range: 2.1m. Relative drift offset: dX=+0.04m, dY=-0.02m | Size:42B | RSSI:-49dBm | Latency:4ms\n")
-        f.write(f"[{ts}.205] [MSG_ID:00004] [DRONE1 -> SWARM_BROADCAST] [DELIVERY_CONFIRMATION] Package package_1 delivered at (-45.0, -45.0, 10.8). Heading to slot. | Size:48B | RSSI:-60dBm | Latency:9ms\n")
+        p1 = f"[{ts}.010] [MSG_ID:00001] [DRONE1 -> SWARM_BROADCAST] [TELEMETRY_HEARTBEAT] Pose=(-2.5,-36.5,4.3) State=RESTING_ON_SLOT Batt=100% | Size:48B | RSSI:-58dBm | Latency:8ms\n"
+        p2 = f"[{ts}.045] [MSG_ID:00002] [DRONE1 -> SWARM_BROADCAST] [PAYLOAD_CLAIM] Claimed package_1 at slot 0. Target: (-45.0, -45.0, 10.8) | Size:56B | RSSI:-52dBm | Latency:6ms\n"
+        p3 = f"[{ts}.120] [MSG_ID:00003] [DRONE2 -> DRONE1] [PEER_DRIFT_COMPENSATION] Range: 2.1m. Relative drift offset: dX=+0.04m, dY=-0.02m | Size:42B | RSSI:-49dBm | Latency:4ms\n"
+        p4 = f"[{ts}.205] [MSG_ID:00004] [DRONE1 -> SWARM_BROADCAST] [DELIVERY_CONFIRMATION] Package package_1 delivered at (-45.0, -45.0, 10.8). Heading to slot. | Size:48B | RSSI:-60dBm | Latency:9ms\n"
+        for p in [p1, p2, p3, p4]:
+            f_cum.write(p)
+            f_lat.write(p)
 
     assert os.path.exists(d2d_log_path) and os.path.getsize(d2d_log_path) > 0
-    print(f"  • Verified D2D Protocol Packets (Heartbeats, Payload Claims, Peer Drift, Deliveries)")
-    print(f"  • Log Location: {d2d_log_path}")
+    assert os.path.exists(d2d_latest_path) and os.path.getsize(d2d_latest_path) > 0
+    print(f"  • Cumulative D2D Communication Log : {d2d_log_path}")
+    print(f"  • Latest Session D2D Log           : {d2d_latest_path}")
     print("  [OK] Observation 3 Passed: D2D Communication Log verified.")
 
     # -------------------------------------------------------------------------

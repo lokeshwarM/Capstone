@@ -10,3 +10,7 @@
 [2026-09-09 02:02:14.045] [MSG_ID:00002] [DRONE1 -> SWARM_BROADCAST] [PAYLOAD_CLAIM] Claimed package_1 at slot 0. Target: (-45.0, -45.0, 10.8) | Size:56B | RSSI:-52dBm | Latency:6ms
 [2026-09-09 02:02:14.120] [MSG_ID:00003] [DRONE2 -> DRONE1] [PEER_DRIFT_COMPENSATION] Range: 2.1m. Relative drift offset: dX=+0.04m, dY=-0.02m | Size:42B | RSSI:-49dBm | Latency:4ms
 [2026-09-09 02:02:14.205] [MSG_ID:00004] [DRONE1 -> SWARM_BROADCAST] [DELIVERY_CONFIRMATION] Package package_1 delivered at (-45.0, -45.0, 10.8). Heading to slot. | Size:48B | RSSI:-60dBm | Latency:9ms
+[2026-09-09 02:27:37.010] [MSG_ID:00001] [DRONE1 -> SWARM_BROADCAST] [TELEMETRY_HEARTBEAT] Pose=(-2.5,-36.5,4.3) State=RESTING_ON_SLOT Batt=100% | Size:48B | RSSI:-58dBm | Latency:8ms
+[2026-09-09 02:27:37.045] [MSG_ID:00002] [DRONE1 -> SWARM_BROADCAST] [PAYLOAD_CLAIM] Claimed package_1 at slot 0. Target: (-45.0, -45.0, 10.8) | Size:56B | RSSI:-52dBm | Latency:6ms
+[2026-09-09 02:27:37.120] [MSG_ID:00003] [DRONE2 -> DRONE1] [PEER_DRIFT_COMPENSATION] Range: 2.1m. Relative drift offset: dX=+0.04m, dY=-0.02m | Size:42B | RSSI:-49dBm | Latency:4ms
+[2026-09-09 02:27:37.205] [MSG_ID:00004] [DRONE1 -> SWARM_BROADCAST] [DELIVERY_CONFIRMATION] Package package_1 delivered at (-45.0, -45.0, 10.8). Heading to slot. | Size:48B | RSSI:-60dBm | Latency:9ms

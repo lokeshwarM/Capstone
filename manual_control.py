@@ -242,42 +242,72 @@ class TeleopNode(Node):
     # ── Real-Time Logging & Geo-Location Tracing ──────────────────────────────
 
     def _init_log_files(self):
-        """Initializes structured persistent log files for Trajectories, GPS, and D2D Communication."""
+        """
+        Initializes structured persistent log files:
+          1. Cumulative logs: Appends continuously across all simulation runs (ledger).
+          2. Latest session logs: Overwrites cleanly on every new simulation start (single-run data).
+        """
         os.makedirs('logs', exist_ok=True)
         now_str = time.strftime("%Y-%m-%d %H:%M:%S")
         
-        # 1. Flight paths CSV (header + continuous timestamped rows)
-        csv_path = 'logs/drone_flight_paths.csv'
-        if not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0:
-            with open(csv_path, 'w', encoding='utf-8') as f:
+        # ─────────────────────────────────────────────────────────────────────
+        # A. CUMULATIVE ALL-TIME LOGS (Appends across all runs)
+        # ─────────────────────────────────────────────────────────────────────
+        # 1. Cumulative Flight paths CSV
+        csv_cum = 'logs/drone_flight_paths.csv'
+        if not os.path.exists(csv_cum) or os.path.getsize(csv_cum) == 0:
+            with open(csv_cum, 'w', encoding='utf-8') as f:
                 f.write('timestamp,drone_id,state,x,y,z,lat,lon,alt_m,battery_pct,payload\n')
                 
-        # 2. Text trajectories log (appends with clear session header for each run)
-        txt_path = 'logs/drone_trajectories.txt'
-        if not os.path.exists(txt_path) or os.path.getsize(txt_path) == 0:
-            with open(txt_path, 'w', encoding='utf-8') as f:
+        # 2. Cumulative Text trajectories log
+        txt_cum = 'logs/drone_trajectories.txt'
+        if not os.path.exists(txt_cum) or os.path.getsize(txt_cum) == 0:
+            with open(txt_cum, 'w', encoding='utf-8') as f:
                 f.write("=" * 80 + "\n")
-                f.write("  UAV SWARM TRAJECTORY & GPS REAL-TIME LOG\n")
+                f.write("  UAV SWARM TRAJECTORY & GPS LOG (ALL-TIME CUMULATIVE LEDGER)\n")
                 f.write(f"  Reference Origin: LAT={LAT_REF}N, LON={LON_REF}E, ALT={ALT_REF}m\n")
                 f.write("=" * 80 + "\n\n")
         else:
-            with open(txt_path, 'a', encoding='utf-8') as f:
+            with open(txt_cum, 'a', encoding='utf-8') as f:
                 f.write(f"\n{'='*80}\n  >>> NEW SIMULATION SESSION: {now_str} <<<\n{'='*80}\n\n")
 
-        # 3. D2D communication log (appends with clear session header for each run)
-        d2d_path = 'logs/d2d_communication_log.txt'
-        if not os.path.exists(d2d_path) or os.path.getsize(d2d_path) == 0:
-            with open(d2d_path, 'w', encoding='utf-8') as f:
+        # 3. Cumulative D2D communication log
+        d2d_cum = 'logs/d2d_communication_log.txt'
+        if not os.path.exists(d2d_cum) or os.path.getsize(d2d_cum) == 0:
+            with open(d2d_cum, 'w', encoding='utf-8') as f:
                 f.write("=" * 90 + "\n")
-                f.write("  DRONE-TO-DRONE (D2D) INTER-UAV COMMUNICATION & TELEMETRY EXCHANGE LOG\n")
+                f.write("  DRONE-TO-DRONE (D2D) INTER-UAV COMMUNICATION LOG (ALL-TIME CUMULATIVE LEDGER)\n")
                 f.write("  Protocol: 802.11s Swarm Mesh | Semantic Compression: Enabled\n")
                 f.write("=" * 90 + "\n\n")
         else:
-            with open(d2d_path, 'a', encoding='utf-8') as f:
+            with open(d2d_cum, 'a', encoding='utf-8') as f:
                 f.write(f"\n{'='*90}\n  >>> NEW SIMULATION SESSION: {now_str} <<<\n{'='*90}\n\n")
 
+        # ─────────────────────────────────────────────────────────────────────
+        # B. LATEST SINGLE SIMULATION SESSION LOGS (Overwrites fresh on every launch)
+        # ─────────────────────────────────────────────────────────────────────
+        # 1. Fresh latest flight paths CSV
+        with open('logs/latest_drone_flight_paths.csv', 'w', encoding='utf-8') as f:
+            f.write('timestamp,drone_id,state,x,y,z,lat,lon,alt_m,battery_pct,payload\n')
+
+        # 2. Fresh latest text trajectories log
+        with open('logs/latest_drone_trajectories.txt', 'w', encoding='utf-8') as f:
+            f.write("=" * 80 + "\n")
+            f.write("  LATEST SIMULATION SESSION: UAV TRAJECTORY & GPS REAL-TIME LOG\n")
+            f.write(f"  Session Started : {now_str}\n")
+            f.write(f"  Reference Origin: LAT={LAT_REF}N, LON={LON_REF}E, ALT={ALT_REF}m\n")
+            f.write("=" * 80 + "\n\n")
+
+        # 3. Fresh latest D2D communication log
+        with open('logs/latest_d2d_communication_log.txt', 'w', encoding='utf-8') as f:
+            f.write("=" * 90 + "\n")
+            f.write("  LATEST SIMULATION SESSION: DRONE-TO-DRONE (D2D) INTER-UAV COMMUNICATION LOG\n")
+            f.write(f"  Session Started : {now_str}\n")
+            f.write("  Protocol: 802.11s Swarm Mesh | Semantic Compression: Enabled\n")
+            f.write("=" * 90 + "\n\n")
+
     def _log_drone_telemetry(self):
-        """Streams real-time drone cartesian (X,Y,Z) and simulated GPS coordinates to CSV."""
+        """Streams real-time drone cartesian (X,Y,Z) and simulated GPS coordinates to CSVs."""
         now = time.time()
         if now - self.last_telemetry_log_time < 0.5:
             return
@@ -286,18 +316,21 @@ class TeleopNode(Node):
         timestr = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)) + f".{int((now % 1)*1000):03d}"
         
         try:
-            with open('logs/drone_flight_paths.csv', 'a', encoding='utf-8') as f:
+            with open('logs/drone_flight_paths.csv', 'a', encoding='utf-8') as f_cum, \
+                 open('logs/latest_drone_flight_paths.csv', 'a', encoding='utf-8') as f_cur:
                 for d_id, pos in self.current_positions.items():
                     state = self.drone_states.get(d_id, 'UNKNOWN')
                     batt = self.batteries.get(d_id, 0.0)
                     lat, lon, alt = gazebo_to_gps(pos[0], pos[1], pos[2])
                     payload = self.drone_payloads.get(d_id) or "NONE"
-                    f.write(f"{timestr},{d_id},{state},{pos[0]:.2f},{pos[1]:.2f},{pos[2]:.2f},{lat:.6f},{lon:.6f},{alt:.2f},{batt:.1f},{payload}\n")
+                    row = f"{timestr},{d_id},{state},{pos[0]:.2f},{pos[1]:.2f},{pos[2]:.2f},{lat:.6f},{lon:.6f},{alt:.2f},{batt:.1f},{payload}\n"
+                    f_cum.write(row)
+                    f_cur.write(row)
         except Exception:
             pass
 
     def _log_waypoint_event(self, drone_id, event_type, details=""):
-        """Logs significant state transitions, waypoints, and geo-locations to text file."""
+        """Logs significant state transitions, waypoints, and geo-locations to text files."""
         now = time.time()
         timestr = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)) + f".{int((now % 1)*1000):03d}"
         pos = self.current_positions.get(drone_id, [0.0, 0.0, 0.0])
@@ -309,8 +342,10 @@ class TeleopNode(Node):
                     f"GPS=({lat:.6f}N, {lon:.6f}E, Alt={alt:.1f}m) | "
                     f"Batt={batt:.1f}% | {details}\n")
         try:
-            with open('logs/drone_trajectories.txt', 'a', encoding='utf-8') as f:
-                f.write(log_line)
+            with open('logs/drone_trajectories.txt', 'a', encoding='utf-8') as f_cum, \
+                 open('logs/latest_drone_trajectories.txt', 'a', encoding='utf-8') as f_cur:
+                f_cum.write(log_line)
+                f_cur.write(log_line)
         except Exception:
             pass
 
@@ -322,8 +357,10 @@ class TeleopNode(Node):
         log_entry = (f"[{timestr}] [MSG_ID:{self.d2d_msg_counter:05d}] [{src.upper()} -> {dst.upper()}] "
                      f"[{msg_type}] {content} | Size:{size_bytes}B | RSSI:{rssi}dBm | Latency:{latency_ms}ms\n")
         try:
-            with open('logs/d2d_communication_log.txt', 'a', encoding='utf-8') as f:
-                f.write(log_entry)
+            with open('logs/d2d_communication_log.txt', 'a', encoding='utf-8') as f_cum, \
+                 open('logs/latest_d2d_communication_log.txt', 'a', encoding='utf-8') as f_cur:
+                f_cum.write(log_entry)
+                f_cur.write(log_entry)
         except Exception:
             pass
 

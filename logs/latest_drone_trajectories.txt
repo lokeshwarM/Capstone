@@ -1,5 +1,5 @@
 ================================================================================
-  UAV SWARM TRAJECTORY & GPS LOG (ALL-TIME CUMULATIVE LEDGER)
+  LATEST SIMULATION SESSION: UAV TRAJECTORY & GPS REAL-TIME LOG
   Reference Origin: LAT=16.4971N, LON=80.5005E, ALT=18.0m
 ================================================================================
 
